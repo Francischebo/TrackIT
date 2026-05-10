@@ -1,0 +1,207 @@
+import re
+
+from marshmallow import Schema, ValidationError, fields, validate
+
+
+class UserRegistrationSchema(Schema):
+    username = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=3, max=120),
+            validate.Regexp(
+                r"^[a-zA-Z0-9_]+$",
+                error="Username must contain only letters, numbers, and underscores",
+            ),
+        ],
+    )
+    email = fields.Email(required=True)
+    password = fields.Str(
+        required=True, validate=validate.Length(min=8, max=255)
+    )
+    first_name = fields.Str(validate=validate.Length(max=120))
+    last_name = fields.Str(validate=validate.Length(max=120))
+    phone_number = fields.Str(validate=validate.Length(max=20))
+    department = fields.Str(validate=validate.Length(max=120))
+    role = fields.Str(
+        validate=validate.OneOf(
+            [
+                "admin",
+                "staff",
+                "viewer",
+                "auditor",
+                "dept_head",
+                "store_manager",
+            ]
+        )
+    )
+    organisation_id = fields.Int(validate=validate.Range(min=1))
+
+class OrganizationRegistrationSchema(Schema):
+    # Organization Info
+    org_name = fields.Str(required=True, validate=validate.Length(min=2, max=255))
+    org_code = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=2, max=50),
+            validate.Regexp(
+                r"^[A-Z0-9_]+$",
+                error="Org code must be uppercase letters, numbers, and underscores",
+            ),
+        ],
+    )
+    org_description = fields.Str(validate=validate.Length(max=1000))
+    
+    # Admin Info
+    admin_username = fields.Str(required=True, validate=validate.Length(min=3, max=120))
+    admin_email = fields.Email(required=True)
+    admin_password = fields.Str(required=True, validate=validate.Length(min=8, max=255))
+    admin_first_name = fields.Str(validate=validate.Length(max=120))
+    admin_last_name = fields.Str(validate=validate.Length(max=120))
+
+
+class UserLoginSchema(Schema):
+    email = fields.Email(required=True)
+    password = fields.Str(required=True)
+
+
+class OrganizationSchema(Schema):
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=255))
+    code = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=1, max=50),
+            validate.Regexp(
+                r"^[A-Z0-9_]+$",
+                error="Code must be uppercase letters, numbers, and underscores",
+            ),
+        ],
+    )
+    description = fields.Str(validate=validate.Length(max=1000))
+
+
+class DepartmentSchema(Schema):
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=255))
+    code = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=1, max=50),
+            validate.Regexp(
+                r"^[A-Z0-9_]+$",
+                error="Code must be uppercase letters, numbers, and underscores",
+            ),
+        ],
+    )
+    description = fields.Str(validate=validate.Length(max=1000))
+    head_id = fields.Int(validate=validate.Range(min=1))
+
+
+class AssetSchema(Schema):
+    asset_code = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=1, max=100),
+            validate.Regexp(
+                r"^[A-Z0-9-_]+$",
+                error="Asset code must contain only uppercase letters, numbers, hyphens, and underscores",
+            ),
+        ],
+    )
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=255))
+    type = fields.Str(required=True, validate=validate.Length(min=1, max=100))
+    serial_number = fields.Str(validate=validate.Length(max=255))
+    department_id = fields.Int(required=True, validate=validate.Range(min=1))
+    assigned_to = fields.Str(validate=validate.Length(max=255))
+    location = fields.Str(validate=validate.Length(max=255))
+    warehouse_id = fields.Int(validate=validate.Range(min=1))
+    bin_id = fields.Int(validate=validate.Range(min=1))
+    purchase_date = fields.Date(required=True)
+    purchase_value = fields.Float(
+        required=True, validate=validate.Range(min=0)
+    )
+    useful_life = fields.Int(
+        required=True, validate=validate.Range(min=1, max=50)
+    )
+    qr_code_data = fields.Str(validate=validate.Length(max=500))
+
+
+class AssetStatusUpdateSchema(Schema):
+    status = fields.Str(
+        required=True,
+        validate=validate.OneOf(
+            [
+                "requested",
+                "approved",
+                "rejected",
+                "in_use",
+                "maintenance",
+                "disposed",
+            ]
+        ),
+    )
+
+
+class TransferRequestSchema(Schema):
+    asset_id = fields.Int(required=True, validate=validate.Range(min=1))
+    new_department_id = fields.Int(
+        required=True, validate=validate.Range(min=1)
+    )
+    new_location = fields.Str(validate=validate.Length(max=255))
+    to_warehouse_id = fields.Int(validate=validate.Range(min=1))
+    to_bin_id = fields.Int(validate=validate.Range(min=1))
+    comment = fields.Str(validate=validate.Length(max=1000))
+
+
+class TransferReviewSchema(Schema):
+    comments = fields.Str(validate=validate.Length(max=1000))
+
+
+class InventoryItemSchema(Schema):
+    name = fields.Str(required=True, validate=validate.Length(min=1, max=255))
+    sku = fields.Str(
+        validate=[
+            validate.Length(min=1, max=100),
+            validate.Regexp(
+                r"^[A-Z0-9-_]+$",
+                error="SKU must contain only uppercase letters, numbers, hyphens, and underscores",
+            ),
+        ]
+    )
+    description = fields.Str(validate=validate.Length(max=1000))
+    quantity = fields.Int(validate=validate.Range(min=0))
+    reorder_level = fields.Int(validate=validate.Range(min=0))
+    unit_price = fields.Float(required=True, validate=validate.Range(min=0))
+    unit = fields.Str(validate=validate.Length(max=50))
+
+
+class StockMovementSchema(Schema):
+    type = fields.Str(required=True, validate=validate.OneOf(["IN", "OUT"]))
+    quantity = fields.Int(required=True, validate=validate.Range(min=1))
+    reference = fields.Str(validate=validate.Length(max=255))
+    notes = fields.Str(validate=validate.Length(max=1000))
+
+
+class TransferSchema(Schema):
+    asset_id = fields.Int(required=True, validate=validate.Range(min=1))
+    new_department_id = fields.Int(
+        required=True, validate=validate.Range(min=1)
+    )
+    new_location = fields.Str(validate=validate.Length(max=255))
+
+
+# Validation functions
+def validate_input(schema_class, data):
+    """Validate input data against schema"""
+    schema = schema_class()
+    try:
+        validated_data = schema.load(data)
+        return validated_data, None
+    except ValidationError as err:
+        return None, err.messages
+
+
+def sanitize_string(value):
+    """Sanitize string input"""
+    if not isinstance(value, str):
+        return value
+    # Remove potentially dangerous characters
+    return re.sub(r"[<>]", "", value.strip())

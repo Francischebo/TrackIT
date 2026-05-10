@@ -1,0 +1,127 @@
+﻿.venv\Scripts\python.ex
+e : Traceback (most 
+recent call last):
+At line:1 char:1
++ .venv\Scripts\python.
+exe run.py > out.txt 
+2>&1
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Traceback (mo   
+ st recent call las    
+t)::String) [], Re    
+moteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory 
+TrackIT\run.py", line 
+2, in <module>
+    from app import 
+create_app, db
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\app\_
+_init__.py", line 5, 
+in <module>
+    from 
+flask_jwt_extended 
+import JWTManager
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\flas
+k_jwt_extended\__init__
+.py", line 1, in 
+<module>
+    from .jwt_manager 
+import JWTManager as 
+JWTManager
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\flas
+k_jwt_extended\jwt_mana
+ger.py", line 6, in 
+<module>
+    import jwt
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\jwt\
+__init__.py", line 1, 
+in <module>
+    from .api_jwk 
+import PyJWK, PyJWKSet
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\jwt\
+api_jwk.py", line 8, 
+in <module>
+    from .algorithms 
+import get_default_algo
+rithms, has_crypto, 
+requires_cryptography
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\jwt\
+algorithms.py", line 
+23, in <module>
+    from .utils import 
+(
+    ...<9 lines>...
+    )
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\jwt\
+utils.py", line 7, in 
+<module>
+    from cryptography.h
+azmat.primitives.asymme
+tric.ec import 
+EllipticCurve
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\cryp
+tography\hazmat\primiti
+ves\asymmetric\ec.py", 
+line 11, in <module>
+    from cryptography.e
+xceptions import 
+UnsupportedAlgorithm, 
+_Reasons
+  File "C:\Users\fivid\
+Desktop\Nova Lite 
+Limited\Assets & 
+Inventory TrackIT\.venv
+\Lib\site-packages\cryp
+tography\exceptions.py"
+, line 9, in <module>
+    from cryptography.h
+azmat.bindings._rust 
+import exceptions as 
+rust_exceptions
+ImportError: DLL load 
+failed while importing 
+_rust: An Application 
+Control policy has 
+blocked this file.

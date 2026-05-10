@@ -1,0 +1,19 @@
+# Add to config.py
+class Config:
+    # ... existing config ...
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key-change-in-production'
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+
+    # Rate limiting
+    RATELIMIT_STORAGE_URL = "memory://"
+    RATELIMIT_STRATEGY = "fixed-window"
+
+    # CORS
+    CORS_HEADERS = 'Content-Type'
+
+# Add to requirements.txt
+Flask-JWT-Extended==4.6.0
+Flask-Limiter==3.5.0
+Flask-CORS==4.0.0
+bcrypt==4.1.2

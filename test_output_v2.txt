@@ -1,0 +1,12 @@
+﻿Running TrackIT Backend Validation Tests
+==================================================
+[OK] Flask app created successfully
+
+[OK] All blueprints imported successfully
+
+[OK] All models imported successfully
+
+[OK] Validation schemas imported successfully
+
+[OK] Auth utilities imported successfully
+

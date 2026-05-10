@@ -1,0 +1,44 @@
+# Multi-stage Dockerfile optimized for CI pipelines and reproducible builds
+
+FROM python:3.11-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install build-time dependencies for wheels (libssl/libffi for cryptography, etc.)
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential gcc libffi-dev libssl-dev ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install runtime dependencies into a separate prefix to copy into final image
+COPY requirements.txt ./
+RUN python -m pip install --upgrade pip setuptools wheel \
+  && python -m pip install --prefix=/install -r requirements.txt
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Add a non-root user for safer containers
+RUN addgroup --system app && adduser --system --ingroup app app
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
+
+# Copy project files
+COPY . /app
+
+# Fix permissions and switch to non-root user
+RUN chown -R app:app /app
+USER app
+
+# Expose default app port (change if your app uses a different one)
+EXPOSE 8000
+
+# Default command for CI to run tests or start the app; CI systems can override this
+CMD ["python", "run.py"]

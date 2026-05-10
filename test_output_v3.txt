@@ -1,0 +1,23 @@
+﻿Running TrackIT Backend Validation Tests
+==================================================
+[OK] Flask app created successfully
+
+[OK] All blueprints imported successfully
+
+[OK] All models imported successfully
+
+[OK] Validation schemas imported successfully
+
+[OK] Auth utilities imported successfully
+
+[OK] Transfer request lifecycle passed
+
+[OK] Transfer request rejection and listing passed
+
+[OK] Audit service imported successfully
+
+[OK] Error classes imported successfully
+
+==================================================
+Results: 9/9 tests passed
+All validation tests passed!

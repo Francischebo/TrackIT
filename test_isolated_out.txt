@@ -1,0 +1,3 @@
+﻿Token created
+Response status: 401
+Response data: {'msg': 'Missing cookie "access_token_cookie"'}

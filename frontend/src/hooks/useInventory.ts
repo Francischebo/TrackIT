@@ -1,0 +1,44 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '../services/api';
+import type { InventoryItem, StockUpdate } from '../types';
+
+export const useInventory = (params: any = {}) => {
+  return useQuery({
+    queryKey: ['inventory', params],
+    queryFn: async () => {
+      const response = await api.get<{ inventory: InventoryItem[], pagination: any }>('/inventory/', { params });
+      return response.data;
+    },
+  });
+};
+
+export const useUpdateStock = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, quantity, type, reference, notes }: { id: number } & StockUpdate) => {
+      const response = await api.post(`/inventory/${id}/stock`, {
+        quantity,
+        type,
+        reference,
+        notes,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+  });
+};
+export const useCreateInventoryItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Partial<InventoryItem>) => {
+      const response = await api.post('/inventory/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    },
+  });
+};

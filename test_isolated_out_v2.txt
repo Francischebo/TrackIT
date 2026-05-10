@@ -1,0 +1,3 @@
+﻿Token created
+Response status: 201
+Response data: {'message': 'Transfer request submitted successfully', 'request_id': 1}
