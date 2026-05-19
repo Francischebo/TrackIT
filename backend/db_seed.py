@@ -17,8 +17,8 @@ def seed_database():
     
     with app.app_context():
         # Clear existing data
-        db.drop_all()
-        db.create_all()
+        # db.drop_all()
+        # db.create_all()
         
         print("Creating organizations...")
         org1 = Organization(

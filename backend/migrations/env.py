@@ -1,8 +1,12 @@
 import os
 import sys
+from dotenv import load_dotenv
 
 # Add project root to path
 sys.path.append(os.getcwd())
+
+# Load environment variables
+load_dotenv()
 
 from logging.config import fileConfig
 
@@ -18,9 +22,12 @@ from app import create_app, db
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set sqlalchemy.url from app config
+# Set sqlalchemy.url from app config (escaping '%' for configparser interpolation)
 flask_app = create_app()
-config.set_main_option("sqlalchemy.url", flask_app.config["SQLALCHEMY_DATABASE_URI"])
+db_url = flask_app.config["SQLALCHEMY_DATABASE_URI"]
+if db_url:
+    db_url = db_url.replace("%", "%%")
+config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

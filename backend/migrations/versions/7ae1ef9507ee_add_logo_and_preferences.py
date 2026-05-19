@@ -58,10 +58,8 @@ def upgrade() -> None:
                existing_type=sa.FLOAT(),
                type_=sa.Numeric(precision=12, scale=2),
                existing_nullable=False)
-    op.create_index('ix_inventory_low_stock_query', 'inventory_items', ['organisation_id', 'is_active', 'quantity', 'reorder_level'], unique=False)
     op.add_column('organizations', sa.Column('logo_url', sa.String(length=512), nullable=True))
     op.add_column('organizations', sa.Column('preferences', sa.JSON(), nullable=True))
-    op.create_index('ix_restock_alerts_org_severity', 'restock_alerts', ['organisation_id', 'severity', 'status'], unique=False)
     op.add_column('transfer_requests', sa.Column('to_warehouse_id', sa.Integer(), nullable=True))
     op.add_column('transfer_requests', sa.Column('to_bin_id', sa.Integer(), nullable=True))
     op.create_foreign_key(None, 'transfer_requests', 'warehouse_bins', ['to_bin_id'], ['id'])
@@ -85,10 +83,8 @@ def downgrade() -> None:
     op.drop_constraint(None, 'transfer_requests', type_='foreignkey')
     op.drop_column('transfer_requests', 'to_bin_id')
     op.drop_column('transfer_requests', 'to_warehouse_id')
-    op.drop_index('ix_restock_alerts_org_severity', table_name='restock_alerts')
     op.drop_column('organizations', 'preferences')
     op.drop_column('organizations', 'logo_url')
-    op.drop_index('ix_inventory_low_stock_query', table_name='inventory_items')
     op.alter_column('inventory_items', 'unit_price',
                existing_type=sa.Numeric(precision=12, scale=2),
                type_=sa.FLOAT(),

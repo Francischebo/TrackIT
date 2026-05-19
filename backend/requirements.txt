@@ -14,7 +14,7 @@ Pillow>=10.0.0
 ReportLab==4.0.7
 openpyxl>=3.1.0
 alembic==1.13.1
-# psycopg2-binary==2.9.9 (Skip for local dev without build tools)
+psycopg2-binary==2.9.9
 gunicorn==21.2.0
 PyJWT>=2.8.1
 cryptography>=41.0.7
