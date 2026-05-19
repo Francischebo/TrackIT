@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
+import { useDashboardSummary } from '../hooks/useDashboard';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 const REPORT_TYPES = [
   {
@@ -60,6 +62,7 @@ const REPORT_TYPES = [
 const Reports = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const { data: summary, isLoading } = useDashboardSummary();
 
   const downloadReport = (endpoint: string, format: string) => {
     let url = `${endpoint}?format=${format}`;
@@ -96,10 +99,12 @@ const Reports = () => {
            <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl">
               <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <div className="relative z-10">
-                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">System Status</h4>
+                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Total System Valuation</h4>
                  <div className="flex items-end gap-3 mb-4">
-                    <span className="text-4xl font-black tracking-tighter">100%</span>
-                    <span className="text-xs font-bold text-emerald-400 mb-1.5">Uptime</span>
+                    <span className="text-4xl font-black tracking-tighter">
+                      {!isLoading && summary ? `${summary.currency} ${(summary.total_valuation / 1000000).toFixed(1)}M` : '...'}
+                    </span>
+                    <span className="text-xs font-bold text-emerald-400 mb-1.5">Verified</span>
                  </div>
                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
                     <Lock className="w-3.5 h-3.5" />
@@ -111,7 +116,7 @@ const Reports = () => {
       </div>
 
       {/* Professional Search & Filters */}
-      <div className="glass-panel p-3 rounded-[2rem] border-slate-200/50 bg-white/40 flex flex-col md:flex-row items-center gap-4 relative z-10 shadow-xl shadow-slate-100/50">
+      <div className="glass-card p-3 rounded-[2rem] border-slate-200/50 bg-white/40 flex flex-col md:flex-row items-center gap-4 relative z-10 shadow-xl shadow-slate-100/50">
          <div className="relative flex-1 group w-full">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand-primary transition-colors" />
             <input 
@@ -120,32 +125,104 @@ const Reports = () => {
                className="w-full bg-white border border-transparent rounded-2xl py-4 pl-14 pr-6 text-sm font-medium focus:ring-4 focus:ring-brand-primary/10 transition-all outline-none shadow-sm"
             />
          </div>
-         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-            <div className="flex items-center bg-white border border-slate-100 rounded-2xl px-4 py-3 shadow-sm h-full">
-               <Calendar className="w-4 h-4 text-slate-400 mr-3" />
-               <input 
-                  type="datetime-local" 
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-600 outline-none w-36"
-                  title="Date From"
-               />
-               <span className="text-slate-300 mx-2">-</span>
+         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center bg-white border border-slate-100 rounded-2xl px-4 py-3 shadow-sm gap-2 w-full sm:w-auto">
+               <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <input 
+                     type="datetime-local" 
+                     value={dateFrom}
+                     onChange={(e) => setDateFrom(e.target.value)}
+                     className="bg-transparent text-xs font-bold text-slate-600 outline-none min-w-[140px] w-full"
+                     title="Date From"
+                  />
+               </div>
+               <span className="text-slate-300 hidden sm:inline">-</span>
                <input 
                   type="datetime-local" 
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-600 outline-none w-36"
+                  className="bg-transparent text-xs font-bold text-slate-600 outline-none min-w-[140px] w-full"
                   title="Date To"
                />
             </div>
             <button 
               onClick={() => { setDateFrom(''); setDateTo(''); }}
-              className="flex items-center justify-center px-6 py-3.5 bg-slate-900 border border-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest text-white hover:bg-black transition-all shadow-lg h-full"
+              className="flex items-center justify-center px-6 py-3.5 bg-slate-900 border border-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest text-white hover:bg-black transition-all shadow-lg h-full w-full sm:w-auto cursor-pointer"
             >
                Clear Filters
             </button>
          </div>
+      </div>
+
+      {/* Intelligence Data Visualization */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10 mb-8">
+        <div className="lg:col-span-2 enterprise-card p-8 bg-white border-none shadow-xl shadow-slate-200/50">
+           <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+             <FileText className="w-5 h-5 text-brand-primary" />
+             Ledger Valuation Distribution
+           </h3>
+           <div className="h-64">
+             {!isLoading && summary ? (
+               <ResponsiveContainer width="100%" height="100%">
+                 <PieChart>
+                   <Pie
+                     data={[
+                       { name: 'Fixed Assets', value: summary.assets?.total_current_value || 0, color: '#3b82f6' },
+                       { name: 'Inventory Stock', value: summary.total_valuation - (summary.assets?.total_current_value || 0), color: '#10b981' }
+                     ]}
+                     innerRadius={60}
+                     outerRadius={80}
+                     paddingAngle={5}
+                     dataKey="value"
+                   >
+                     <Cell fill="#3b82f6" />
+                     <Cell fill="#10b981" />
+                   </Pie>
+                   <Tooltip 
+                     formatter={(value: any) => [`${summary.currency} ${Number(value).toLocaleString()}`, 'Valuation']}
+                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                   />
+                 </PieChart>
+               </ResponsiveContainer>
+             ) : (
+               <div className="w-full h-full flex items-center justify-center">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary" />
+               </div>
+             )}
+           </div>
+           <div className="flex justify-center gap-8 mt-4">
+             <div className="flex items-center gap-2">
+               <div className="w-3 h-3 rounded-full bg-blue-500" />
+               <span className="text-sm font-bold text-slate-600">Fixed Assets</span>
+             </div>
+             <div className="flex items-center gap-2">
+               <div className="w-3 h-3 rounded-full bg-emerald-500" />
+               <span className="text-sm font-bold text-slate-600">Inventory Stock</span>
+             </div>
+           </div>
+        </div>
+        
+        <div className="lg:col-span-1 enterprise-card p-8 bg-slate-900 text-white border-none shadow-xl shadow-brand-primary/20 flex flex-col justify-center">
+           <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-6">
+             <ShieldCheck className="w-6 h-6 text-brand-400" />
+           </div>
+           <h4 className="text-2xl font-black mb-2">Audit Compliance</h4>
+           <p className="text-slate-400 text-sm mb-8">System intelligence rating based on real-time ledger variance.</p>
+           
+           <div className="flex items-end gap-2 mb-2">
+             <span className="text-5xl font-black">{!isLoading ? summary?.compliance?.compliance_score || 0 : '...'}</span>
+             <span className="text-xl font-bold text-brand-400 mb-1">%</span>
+           </div>
+           <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+             <motion.div 
+               initial={{ width: 0 }}
+               animate={{ width: `${!isLoading ? summary?.compliance?.compliance_score || 0 : 0}%` }}
+               transition={{ duration: 1.5, ease: "easeOut" }}
+               className="h-full bg-brand-primary shadow-[0_0_10px_rgba(14,165,233,0.5)]"
+             />
+           </div>
+        </div>
       </div>
 
       {/* Intelligence Cards Grid */}
@@ -196,8 +273,8 @@ const Reports = () => {
                      )}
                   </div>
                   <div className="hidden sm:flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
-                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Last Generated</span>
-                     <span className="text-xs font-bold text-slate-900">Today, 09:12 AM</span>
+                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Report Status</span>
+                     <span className="text-xs font-bold text-slate-900">Ready to Generate</span>
                   </div>
                </div>
             </div>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Package, Hash, FileText, ChevronUp, ChevronDown } from 'lucide-react';
+import { Package, Hash, FileText, ChevronUp, ChevronDown, Warehouse } from 'lucide-react';
 import { Modal } from './Modal';
 import { useUpdateStock } from '../../hooks/useInventory';
+import { useWarehouses } from '../../hooks/useWarehouses';
 
 interface StockAdjustmentModalProps {
   isOpen: boolean;
@@ -13,14 +14,17 @@ interface StockAdjustmentModalProps {
 export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ isOpen, onClose, item, initialType = 'IN' }) => {
   const [quantity, setQuantity] = useState(1);
   const [type, setType] = useState<'IN' | 'OUT'>(initialType);
+  const [warehouseId, setWarehouseId] = useState<number | undefined>(undefined);
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const updateStock = useUpdateStock();
+  const { data: warehouses } = useWarehouses();
 
   // Reset type when modal opens with a specific initialType
   React.useEffect(() => {
     if (isOpen) {
       setType(initialType);
+      setWarehouseId(undefined);
     }
   }, [isOpen, initialType]);
 
@@ -31,10 +35,12 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ isOp
       type,
       reference,
       notes,
+      warehouse_id: warehouseId,
     }, {
       onSuccess: () => {
         onClose();
         setQuantity(1);
+        setWarehouseId(undefined);
         setReference('');
         setNotes('');
       }
@@ -53,7 +59,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ isOp
           </button>
           <button 
             onClick={handleAdjust}
-            disabled={updateStock.isPending || !reference}
+            disabled={updateStock.isPending || !reference || !warehouseId}
             className="btn-primary flex items-center gap-2 disabled:opacity-50"
           >
             {updateStock.isPending ? 'Processing...' : 'Confirm Adjustment'}
@@ -81,7 +87,26 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ isOp
 
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2 italic">
-            <Package className="w-4 h-4" /> Adjustment Quantity
+            <Warehouse className="w-4 h-4 text-brand-primary" /> Target Facility / Warehouse (Required)
+          </label>
+          <select
+            value={warehouseId || ''}
+            onChange={(e) => setWarehouseId(e.target.value ? Number(e.target.value) : undefined)}
+            className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none cursor-pointer"
+            style={{ fontFamily: 'Outfit' }}
+          >
+            <option value="">Select a warehouse facility...</option>
+            {warehouses?.map((wh) => (
+              <option key={wh.warehouse_id} value={wh.warehouse_id}>
+                {wh.warehouse_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-slate-700 flex items-center gap-2 italic">
+            <Package className="w-4 h-4 text-brand-primary" /> Adjustment Quantity
           </label>
           <div className="flex items-center gap-4 bg-slate-100 p-2 rounded-xl border border-slate-200">
             <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-10 h-10 flex items-center justify-center bg-white rounded-lg shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">-</button>
@@ -97,7 +122,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ isOp
 
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2 italic">
-            <Hash className="w-4 h-4" /> Reference # (Required)
+            <Hash className="w-4 h-4 text-brand-primary" /> Reference # (Required)
           </label>
           <input 
             type="text" 
@@ -110,7 +135,7 @@ export const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({ isOp
 
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700 flex items-center gap-2 italic">
-            <FileText className="w-4 h-4" /> Transaction Notes
+            <FileText className="w-4 h-4 text-brand-primary" /> Transaction Notes
           </label>
           <textarea 
             placeholder="Reason for adjustment..."

@@ -100,7 +100,7 @@ const DepartmentModal = ({ isOpen, onClose, department }: DepartmentModalProps) 
                   <label className="text-xs font-black tracking-widest uppercase text-slate-500">Head of Department</label>
                   <select
                     value={formData.head_id}
-                    onChange={(e) => setFormData({ ...formData, head_id: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, head_id: e.target.value === '' ? '' : Number(e.target.value) })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-brand-primary/10 focus:border-brand-primary/30 outline-none transition-all"
                     disabled={usersLoading}
                   >

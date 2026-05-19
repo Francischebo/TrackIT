@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { Barcode, Tag, MapPin, Calendar, DollarSign, Activity } from 'lucide-react';
-import { useCreateAsset } from '../../hooks/useAssets';
+import { useCreateAsset, useUpdateAsset } from '../../hooks/useAssets';
 import { useDepartments } from '../../hooks/useDepartments';
 import { useWarehouses, useWarehouseDetails } from '../../hooks/useWarehouses';
 import { useToast } from '../../context/ToastContext';
+import type { Asset } from '../../types';
 
 interface AssetModalProps {
   isOpen: boolean;
   onClose: () => void;
+  asset?: Asset | null;
 }
 
-export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
+export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose, asset }) => {
   const { addToast } = useToast();
   const createAsset = useCreateAsset();
+  const updateAsset = useUpdateAsset();
   const { data: departments } = useDepartments();
   const { data: warehouses } = useWarehouses();
   
@@ -31,20 +34,22 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
     location: '',
   });
 
-  const { data: bins } = useWarehouseDetails(Number(formData.warehouse_id));
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        ...formData,
-        department_id: Number(formData.department_id),
-        warehouse_id: formData.warehouse_id ? Number(formData.warehouse_id) : undefined,
-        bin_id: formData.bin_id ? Number(formData.bin_id) : undefined,
-      };
-      await createAsset.mutateAsync(payload);
-      addToast('success', 'Asset Registered', `${formData.name} has been added to the portfolio.`);
-      onClose();
+  useEffect(() => {
+    if (asset) {
+      setFormData({
+        name: asset.name || '',
+        type: asset.type || 'Hardware',
+        asset_code: asset.asset_code || '',
+        serial_number: asset.serial_number || '',
+        purchase_date: asset.purchase_date ? new Date(asset.purchase_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        purchase_value: Number(asset.purchase_value) || 0,
+        useful_life: Number(asset.useful_life) || 5,
+        department_id: String(asset.department_id) || '',
+        warehouse_id: asset.warehouse_id ? String(asset.warehouse_id) : '',
+        bin_id: asset.bin_id ? String(asset.bin_id) : '',
+        location: asset.location || '',
+      });
+    } else {
       setFormData({
         name: '',
         type: 'Hardware',
@@ -58,32 +63,70 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
         bin_id: '',
         location: '',
       });
-    } catch (err) {
-      addToast('error', 'Registration Failed', 'Please verify form data and try again.');
+    }
+  }, [asset, isOpen]);
+
+  const { data: bins } = useWarehouseDetails(Number(formData.warehouse_id));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Frontend Validation
+    if (!formData.name.trim()) return addToast('error', 'Validation Error', 'Asset name is required');
+    if (!formData.department_id) return addToast('error', 'Validation Error', 'Please select a department');
+    
+    try {
+      const finalAssetCode = formData.asset_code.trim();
+      
+      const payload = {
+        ...formData,
+        asset_code: finalAssetCode || undefined,
+        department_id: Number(formData.department_id),
+        warehouse_id: formData.warehouse_id ? Number(formData.warehouse_id) : undefined,
+        bin_id: formData.bin_id ? Number(formData.bin_id) : undefined,
+        purchase_value: Number(formData.purchase_value),
+        useful_life: Number(formData.useful_life),
+      };
+
+      if (asset) {
+        await updateAsset.mutateAsync({ id: asset.id, ...payload });
+        addToast('success', 'Asset Updated', `${formData.name} has been updated.`);
+      } else {
+        await createAsset.mutateAsync(payload);
+        addToast('success', 'Asset Registered', `${formData.name} has been added to the portfolio.`);
+      }
+      
+      onClose();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Please verify form data and try again.';
+      addToast('error', asset ? 'Update Failed' : 'Registration Failed', msg);
     }
   };
+
+  const isPending = createAsset.isPending || updateAsset.isPending;
 
   return (
     <Modal 
       isOpen={isOpen} 
       onClose={onClose} 
-      title="Register New Asset" 
+      title={asset ? "Edit Asset" : "Register New Asset"} 
       size="xl"
       footer={
         <>
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button 
-            onClick={handleSubmit} 
-            disabled={createAsset.isPending}
+            type="submit"
+            form="asset-form"
+            disabled={isPending}
             className="btn-primary"
           >
-            {createAsset.isPending ? 'Registering...' : 'Register Asset'}
+            {isPending ? (asset ? 'Updating...' : 'Registering...') : (asset ? 'Save Changes' : 'Register Asset')}
           </button>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-2 gap-6">
+      <form id="asset-form" onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
               <Tag className="w-3 h-3" /> Asset Name
@@ -106,11 +149,11 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
               value={formData.type}
               onChange={e => setFormData({...formData, type: e.target.value})}
             >
-              <option>Hardware</option>
-              <option>Software</option>
-              <option>Furniture</option>
-              <option>Vehicle</option>
-              <option>Infrastructure</option>
+              <option value="Hardware">Hardware</option>
+              <option value="Software">Software</option>
+              <option value="Furniture">Furniture</option>
+              <option value="Vehicle">Vehicle</option>
+              <option value="Infrastructure">Infrastructure</option>
             </select>
           </div>
           <div className="space-y-2">
@@ -119,11 +162,11 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
             </label>
             <input 
               type="text" 
-              required
               className="input-field font-mono" 
-              placeholder="AST-00000"
+              placeholder="Leave empty for auto-gen"
               value={formData.asset_code}
               onChange={e => setFormData({...formData, asset_code: e.target.value})}
+              disabled={!!asset}
             />
           </div>
           <div className="space-y-2">
@@ -144,6 +187,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
             </label>
             <input 
               type="date" 
+              required
               className="input-field" 
               value={formData.purchase_date}
               onChange={e => setFormData({...formData, purchase_date: e.target.value})}
@@ -155,6 +199,9 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
             </label>
             <input 
               type="number" 
+              required
+              min="0"
+              step="0.01"
               className="input-field" 
               value={formData.purchase_value}
               onChange={e => setFormData({...formData, purchase_value: Number(e.target.value)})}
@@ -166,6 +213,9 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
             </label>
             <input 
               type="number" 
+              required
+              min="1"
+              max="50"
               className="input-field" 
               value={formData.useful_life}
               onChange={e => setFormData({...formData, useful_life: Number(e.target.value)})}
@@ -218,7 +268,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose }) => {
               ))}
             </select>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
               <MapPin className="w-3 h-3" /> Legacy Location String
             </label>

@@ -162,7 +162,6 @@ def update_user_role(user_id):
 
     if new_role not in [
         "admin",
-        "manager",
         "staff",
         "dept_head",
         "store_manager",

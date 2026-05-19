@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, AlertTriangle, Package2, DollarSign, BarChart3, Activity, Sparkles } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, AlertTriangle, Package2, Landmark, BarChart3, Activity, Sparkles } from 'lucide-react';
 import { StatsCard } from '../components/ui/StatsCard';
 import { MovementTrendsChart } from '../components/ui/MovementTrendsChart';
 import { useDashboardSummary, useAlerts, useDashboardMovements } from '../hooks/useDashboard';
+import { useWarehouses } from '../hooks/useWarehouses';
 import { cn } from '../lib/utils';
 import { motion } from 'framer-motion';
 import { ErrorFallback } from '../components/ui/ErrorFallback';
@@ -11,9 +12,11 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 const Dashboard = () => {
   const [trendDays, setTrendDays] = useState(7);
-  const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | undefined>(undefined);
+  const { data: summary, isLoading: summaryLoading } = useDashboardSummary(selectedWarehouseId);
   const { data: alerts, isLoading: alertsLoading } = useAlerts();
   const { data: movements, isLoading: movementsLoading } = useDashboardMovements(trendDays);
+  const { data: warehouses } = useWarehouses();
   const navigate = useNavigate();
 
   return (
@@ -22,7 +25,7 @@ const Dashboard = () => {
       animate={{ opacity: 1 }}
       className="space-y-10"
     >
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 relative">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 relative">
         <div className="absolute -top-10 -left-10 w-64 h-64 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none" />
         <div className="space-y-2 relative z-10">
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center gap-4" style={{ fontFamily: 'Outfit' }}>
@@ -33,7 +36,28 @@ const Dashboard = () => {
           </h1>
           <p className="text-slate-500 font-medium tracking-tight text-lg ml-1">Overview of your assets and inventory.</p>
         </div>
-        <div className="flex gap-3 relative z-10">
+        <div className="flex flex-wrap items-center gap-3 relative z-10">
+          {/* Warehouse Dropdown */}
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Facility:</span>
+            <select
+              value={selectedWarehouseId || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedWarehouseId(val ? Number(val) : undefined);
+              }}
+              className="bg-transparent border-none text-slate-700 font-bold focus:outline-none focus:ring-0 cursor-pointer text-sm"
+              style={{ fontFamily: 'Outfit' }}
+            >
+              <option value="">All Warehouses</option>
+              {warehouses?.map((wh) => (
+                <option key={wh.warehouse_id} value={wh.warehouse_id}>
+                  {wh.warehouse_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button 
             onClick={() => navigate('/reports')}
             className="btn-secondary flex items-center gap-2 group"
@@ -52,38 +76,35 @@ const Dashboard = () => {
       {/* KPI Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8">
         <StatsCard 
-          title="Consumable Stock" 
+          title="Stock Items" 
           value={summary?.inventory?.total_items || 0} 
           icon={Package2} 
           color="indigo"
-          description="Tracked units across facilities"
+          description="Total items in all stores"
           loading={summaryLoading}
-          trend={{ value: 12, isUp: true }}
         />
         <StatsCard 
-          title="Institutional Valuation" 
-          value={`KES ${(summary?.total_valuation || 0)?.toLocaleString()}`} 
-          icon={DollarSign} 
+          title="Total Asset Value" 
+          value={`${summary?.currency || 'KES'} ${(summary?.total_valuation || 0)?.toLocaleString()}`} 
+          icon={Landmark} 
           color="emerald"
-          description="Aggregate financial assessment"
+          description="Total worth of all assets"
           loading={summaryLoading}
-          trend={{ value: 3.4, isUp: true }}
         />
         <StatsCard 
-          title="Priority Incidents" 
+          title="Stock Alerts" 
           value={alerts?.length || 0} 
           icon={AlertTriangle} 
           color="amber"
-          description="Required institutional attention"
+          description="Items that need attention"
           loading={alertsLoading}
-          trend={{ value: 2, isUp: false }}
         />
         <StatsCard 
-          title="System Integrity" 
-          value={`${summary?.inventory?.health?.healthy || 0}`} 
+          title="Store Health" 
+          value={summary?.inventory?.total_items === 0 ? "100%" : `${Math.round(((summary?.inventory?.health?.healthy || 0) / (summary?.inventory?.total_items || 1)) * 100)}%`} 
           icon={Activity} 
           color="slate"
-          description="Optimized operational state"
+          description="Status of your storage"
           loading={summaryLoading}
         />
       </div>
@@ -95,7 +116,7 @@ const Dashboard = () => {
                 <div className="p-1.5 bg-brand-primary/20 rounded-lg">
                   <BarChart3 className="w-5 h-5 text-brand-400" />
                 </div>
-                Movement Trends
+                Stock Activity
               </h3>
               <div className="flex gap-2">
                 <span 
@@ -114,7 +135,7 @@ const Dashboard = () => {
            </div>
            <div className="p-6 flex-1 relative">
              <ErrorBoundary FallbackComponent={ErrorFallback}>
-               <MovementTrendsChart data={movements} loading={movementsLoading} />
+               <MovementTrendsChart data={movements || {}} loading={movementsLoading} />
              </ErrorBoundary>
            </div>
         </div>
@@ -129,7 +150,7 @@ const Dashboard = () => {
             </h3>
           </div>
           <div className="p-6 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
-            {(alerts || []).slice(0, 8).map((alert: any) => (
+            {Array.isArray(alerts) && alerts.slice(0, 8).map((alert: any) => (
               <div key={alert.id} className="flex gap-4 group p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 cursor-pointer relative overflow-hidden">
                 <div className={cn(
                   "w-1.5 rounded-full shadow-inner",

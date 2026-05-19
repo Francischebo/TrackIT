@@ -2,42 +2,67 @@ import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { ArrowRightLeft, MapPin, MessageSquare, Building2, Loader2 } from 'lucide-react';
 import { useRequestTransfer } from '../../hooks/useTransfers';
+import { useWarehouses, useWarehouseDetails } from '../../hooks/useWarehouses';
 import { useDepartments } from '../../hooks/useDepartments';
 import { useToast } from '../../context/ToastContext';
 
 interface TransferRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  asset: any | null;
+  asset?: any | null;
+  inventoryItem?: any | null;
+  itemType?: 'asset' | 'inventory';
 }
 
-export const TransferRequestModal: React.FC<TransferRequestModalProps> = ({ isOpen, onClose, asset }) => {
+export const TransferRequestModal: React.FC<TransferRequestModalProps> = ({ isOpen, onClose, asset, inventoryItem, itemType = 'asset' }) => {
   const [newDepartmentId, setNewDepartmentId] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [toWarehouseId, setToWarehouseId] = useState('');
+  const [toBinId, setToBinId] = useState('');
   const [comment, setComment] = useState('');
+  const [quantity, setQuantity] = useState<number>(1);
   
   const { data: departments } = useDepartments();
+  const { data: warehouses } = useWarehouses();
+  const { data: bins } = useWarehouseDetails(Number(toWarehouseId));
   const { mutate: requestTransfer, isPending } = useRequestTransfer();
   const { addToast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!asset || !newDepartmentId) return;
+    if (!newDepartmentId) return;
+
+    const payload: any = { 
+      new_department_id: Number(newDepartmentId), 
+      new_location: newLocation, 
+      comment,
+      to_warehouse_id: toWarehouseId ? Number(toWarehouseId) : undefined,
+      to_bin_id: toBinId ? Number(toBinId) : undefined,
+      item_type: itemType
+    };
+
+    if (itemType === 'asset' && asset) {
+      payload.asset_id = asset.id;
+    } else if (itemType === 'inventory' && inventoryItem) {
+      payload.inventory_item_id = inventoryItem.id;
+      payload.quantity = Number(quantity);
+    } else {
+      return;
+    }
 
     requestTransfer(
-      { 
-        asset_id: asset.id, 
-        new_department_id: Number(newDepartmentId), 
-        new_location: newLocation, 
-        comment 
-      },
+      payload,
       {
         onSuccess: () => {
-          addToast('success', 'Transfer Requested', `Movement request for ${asset.name} has been submitted.`);
+          const itemName = itemType === 'asset' ? asset.name : inventoryItem.name;
+          addToast('success', 'Transfer Requested', `Movement request for ${itemName} has been submitted.`);
           onClose();
           setNewDepartmentId('');
           setNewLocation('');
+          setToWarehouseId('');
+          setToBinId('');
           setComment('');
+          setQuantity(1);
         },
         onError: (error: any) => {
           addToast('error', 'Request Failed', error.response?.data?.message || 'Failed to submit transfer request.');
@@ -46,7 +71,7 @@ export const TransferRequestModal: React.FC<TransferRequestModalProps> = ({ isOp
     );
   };
 
-  if (!asset) return null;
+  if (!asset && !inventoryItem) return null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Request Asset Transfer">
@@ -58,15 +83,38 @@ export const TransferRequestModal: React.FC<TransferRequestModalProps> = ({ isOp
               <ArrowRightLeft className="w-5 h-5 text-brand-primary" />
             </div>
             <div>
-              <h4 className="font-bold text-slate-900">{asset.name}</h4>
-              <p className="text-xs font-mono text-slate-500">{asset.asset_code}</p>
+              <h4 className="font-bold text-slate-900">{itemType === 'asset' ? asset?.name : inventoryItem?.name}</h4>
+              <p className="text-xs font-mono text-slate-500">{itemType === 'asset' ? asset?.asset_code : inventoryItem?.sku}</p>
             </div>
           </div>
-          <div className="flex gap-4 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-200">
-            <div><span className="font-bold">Current Dept:</span> {asset.department_name}</div>
-            <div><span className="font-bold">Location:</span> {asset.location || 'Unassigned'}</div>
-          </div>
+          {itemType === 'asset' && (
+            <div className="flex gap-4 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-200">
+              <div><span className="font-bold">Current Dept:</span> {asset?.department_name}</div>
+              <div><span className="font-bold">Location:</span> {asset?.location || 'Unassigned'}</div>
+            </div>
+          )}
+          {itemType === 'inventory' && (
+            <div className="flex gap-4 text-xs text-slate-600 mt-3 pt-3 border-t border-slate-200">
+              <div><span className="font-bold">Global Stock:</span> {inventoryItem?.quantity} {inventoryItem?.unit}</div>
+            </div>
+          )}
         </div>
+
+        {itemType === 'inventory' && (
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Quantity to Transfer</label>
+            <div className="relative">
+              <input
+                type="number"
+                min="1"
+                max={inventoryItem?.quantity}
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 px-4 focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all outline-none"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div>
@@ -88,7 +136,42 @@ export const TransferRequestModal: React.FC<TransferRequestModalProps> = ({ isOp
           </div>
           
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">New Location (Optional)</label>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Destination Warehouse (Optional)</label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <select
+                value={toWarehouseId}
+                onChange={(e) => { setToWarehouseId(e.target.value); setToBinId(''); }}
+                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all outline-none appearance-none"
+              >
+                <option value="">Select Warehouse...</option>
+                {warehouses?.map((wh: any) => (
+                  <option key={wh.id || wh.warehouse_id} value={wh.id || wh.warehouse_id}>{wh.name || wh.warehouse_name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Destination Bin (Optional)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <select
+                value={toBinId}
+                onChange={(e) => setToBinId(e.target.value)}
+                disabled={!toWarehouseId}
+                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all outline-none appearance-none disabled:opacity-50"
+              >
+                <option value="">Select Bin...</option>
+                {bins?.map((bin: any) => (
+                  <option key={bin.id} value={bin.id}>{bin.code} {bin.description ? `- ${bin.description}` : ''}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">New Location String (Optional)</label>
             <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input

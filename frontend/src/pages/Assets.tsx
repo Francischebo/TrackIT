@@ -23,6 +23,7 @@ const Assets = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [selectedAssetForQR, setSelectedAssetForQR] = useState<any>(null);
   const [selectedAssetForTransfer, setSelectedAssetForTransfer] = useState<any>(null);
   
@@ -35,6 +36,27 @@ const Assets = () => {
   const assets = (data as any)?.assets || [];
   const pagination = (data as any)?.pagination;
   const { user } = useAuth();
+
+  const handleEdit = (asset: any) => {
+    setSelectedAsset(asset);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedAsset(null);
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      requested: 'Requested',
+      approved: 'Approved',
+      in_use: 'In Use',
+      maintenance: 'Maintenance',
+      disposed: 'Disposed',
+    };
+    return labels[status] || status;
+  };
 
   return (
     <motion.div 
@@ -92,11 +114,11 @@ const Assets = () => {
               key={status} 
               onClick={() => { setStatusFilter(status); setPage(1); }}
               className={cn(
-                "px-4 py-2 rounded-xl text-[11px] font-bold transition-all capitalize whitespace-nowrap shadow-sm border",
+                "px-4 py-2 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap shadow-sm border",
                 statusFilter === status ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-slate-500 border-slate-200/60 hover:border-slate-300 hover:text-brand-primary"
               )}
             >
-              {status.replace('_', ' ')}
+              {getStatusLabel(status)}
             </button>
           ))}
         </div>
@@ -136,7 +158,7 @@ const Assets = () => {
                       "px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-widest whitespace-nowrap shadow-sm",
                       STATUS_THEMES[asset.status as keyof typeof STATUS_THEMES] || STATUS_THEMES.requested
                     )}>
-                      {asset.status.replace('_', ' ')}
+                      {getStatusLabel(asset.status)}
                     </div>
                   </div>
 
@@ -189,7 +211,10 @@ const Assets = () => {
                       >
                         <ArrowRightLeft className="w-4 h-4 group-hover/transfer:scale-110 transition-transform" />
                       </button>
-                      <button className="text-[11px] font-bold text-brand-primary hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 group/btn">
+                      <button 
+                        onClick={() => handleEdit(asset)}
+                        className="text-[11px] font-bold text-brand-primary hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 group/btn"
+                      >
                         View Details <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
@@ -225,7 +250,8 @@ const Assets = () => {
 
       <AssetModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={handleCloseModal} 
+        asset={selectedAsset}
       />
 
       <Modal 

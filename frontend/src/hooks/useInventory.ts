@@ -6,7 +6,7 @@ export const useInventory = (params: any = {}) => {
   return useQuery({
     queryKey: ['inventory', params],
     queryFn: async () => {
-      const response = await api.get<{ inventory: InventoryItem[], pagination: any }>('/inventory/', { params });
+      const response = await api.get<{ inventory: InventoryItem[], pagination: any }>('/inventory', { params });
       return response.data;
     },
   });
@@ -15,12 +15,20 @@ export const useInventory = (params: any = {}) => {
 export const useUpdateStock = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, quantity, type, reference, notes }: { id: number } & StockUpdate) => {
+    mutationFn: async ({ id, quantity, type, reference, notes, warehouse_id }: {
+      id: number;
+      quantity: number;
+      type: 'IN' | 'OUT';
+      reference: string;
+      notes?: string;
+      warehouse_id?: number;
+    }) => {
       const response = await api.post(`/inventory/${id}/stock`, {
         quantity,
         type,
         reference,
         notes,
+        warehouse_id,
       });
       return response.data;
     },
@@ -34,7 +42,7 @@ export const useCreateInventoryItem = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: Partial<InventoryItem>) => {
-      const response = await api.post('/inventory/', data);
+      const response = await api.post('/inventory', data);
       return response.data;
     },
     onSuccess: () => {

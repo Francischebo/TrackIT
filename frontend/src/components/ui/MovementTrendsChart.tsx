@@ -26,6 +26,7 @@ export const MovementTrendsChart: React.FC<MovementTrendsChartProps> = ({ data, 
 
   // Transform object to sorted array for Recharts
   const chartData = Object.entries(data || {})
+    .filter(([day]) => !isNaN(new Date(day).getTime())) // Filter out non-date keys (like 'success', 'status_code')
     .sort(([dayA], [dayB]) => new Date(dayA).getTime() - new Date(dayB).getTime())
     .map(([day, values]) => ({
       day: new Date(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
@@ -80,7 +81,7 @@ export const MovementTrendsChart: React.FC<MovementTrendsChartProps> = ({ data, 
           <Area 
             type="monotone" 
             dataKey="IN" 
-            name="Inbound"
+            name="Stock In"
             stroke="#2563eb" 
             strokeWidth={4}
             fillOpacity={1} 
@@ -90,7 +91,7 @@ export const MovementTrendsChart: React.FC<MovementTrendsChartProps> = ({ data, 
           <Area 
             type="monotone" 
             dataKey="OUT" 
-            name="Outbound"
+            name="Stock Out"
             stroke="#38bdf8" 
             strokeWidth={4}
             fillOpacity={1} 

@@ -96,13 +96,14 @@ class DepartmentSchema(Schema):
 
 
 class AssetSchema(Schema):
+    # Allow asset_code to be optional so the service layer can auto-generate it
     asset_code = fields.Str(
-        required=True,
+        required=False,
         validate=[
             validate.Length(min=1, max=100),
             validate.Regexp(
-                r"^[A-Z0-9-_]+$",
-                error="Asset code must contain only uppercase letters, numbers, hyphens, and underscores",
+                r"^[a-zA-Z0-9\-_./ ]+$",
+                error="Asset code must contain only letters, numbers, hyphens, underscores, dots, slashes, and spaces",
             ),
         ],
     )
@@ -141,14 +142,18 @@ class AssetStatusUpdateSchema(Schema):
 
 
 class TransferRequestSchema(Schema):
-    asset_id = fields.Int(required=True, validate=validate.Range(min=1))
+    item_type = fields.Str(validate=validate.OneOf(["asset", "inventory"]), missing="asset")
+    asset_id = fields.Int(validate=validate.Range(min=1), allow_none=True)
+    inventory_item_id = fields.Int(validate=validate.Range(min=1), allow_none=True)
+    quantity = fields.Int(validate=validate.Range(min=1), missing=1)
     new_department_id = fields.Int(
         required=True, validate=validate.Range(min=1)
     )
-    new_location = fields.Str(validate=validate.Length(max=255))
-    to_warehouse_id = fields.Int(validate=validate.Range(min=1))
-    to_bin_id = fields.Int(validate=validate.Range(min=1))
-    comment = fields.Str(validate=validate.Length(max=1000))
+    new_location = fields.Str(validate=validate.Length(max=255), allow_none=True)
+    to_warehouse_id = fields.Int(validate=validate.Range(min=1), allow_none=True)
+    to_bin_id = fields.Int(validate=validate.Range(min=1), allow_none=True)
+    from_warehouse_id = fields.Int(validate=validate.Range(min=1), allow_none=True)
+    comment = fields.Str(validate=validate.Length(max=1000), allow_none=True)
 
 
 class TransferReviewSchema(Schema):
@@ -161,8 +166,8 @@ class InventoryItemSchema(Schema):
         validate=[
             validate.Length(min=1, max=100),
             validate.Regexp(
-                r"^[A-Z0-9-_]+$",
-                error="SKU must contain only uppercase letters, numbers, hyphens, and underscores",
+                r"^[a-zA-Z0-9\-_./ ]+$",
+                error="SKU must contain only letters, numbers, hyphens, underscores, dots, slashes, and spaces",
             ),
         ]
     )
@@ -176,6 +181,7 @@ class InventoryItemSchema(Schema):
 class StockMovementSchema(Schema):
     type = fields.Str(required=True, validate=validate.OneOf(["IN", "OUT"]))
     quantity = fields.Int(required=True, validate=validate.Range(min=1))
+    warehouse_id = fields.Int(validate=validate.Range(min=1))
     reference = fields.Str(validate=validate.Length(max=255))
     notes = fields.Str(validate=validate.Length(max=1000))
 

@@ -5,6 +5,7 @@ from app.repositories.inventory_repository import InventoryRepository
 from app.errors import NotFoundError, ConflictError, ValidationError
 from app.db_utils import transaction_retry
 from app.services.event_bus import event_bus
+from flask import current_app
 
 
 class InventoryService:
@@ -39,8 +40,17 @@ class InventoryService:
 
     @transaction_retry(max_retries=3)
     def create_item(self, org_id, validated_data):
+        current_app.logger.debug(
+            "create_item called",
+            extra={"org_id": org_id, "data_keys": list(validated_data.keys())},
+        )
+
         # business validations (uniqueness)
         if self.repo.exists_sku(org_id, validated_data.get("sku")):
+            current_app.logger.warning(
+                "create_item: sku conflict",
+                extra={"sku": validated_data.get("sku")},
+            )
             raise ConflictError("SKU already exists")
 
         item = self.repo.create_item(
@@ -53,10 +63,21 @@ class InventoryService:
             reference="Initial creation",
             session=self.session,
         )
-        self.session.commit()
-        
+        try:
+            self.session.commit()
+        except Exception as e:
+            current_app.logger.error(
+                "create_item: commit failed", extra={"error": str(e)}
+            )
+            self.session.rollback()
+            raise
+
         event_bus.publish("INVENTORY_CREATED", {"item_id": item.id, "sku": item.sku}, organisation_id=org_id)
-        
+        current_app.logger.info(
+            "create_item: success",
+            extra={"item_id": item.id, "sku": item.sku},
+        )
+
         return item
 
     @transaction_retry(max_retries=3)
@@ -126,6 +147,7 @@ class InventoryService:
         org_id,
         movement_type,
         quantity,
+        warehouse_id=None,
         reference=None,
         notes=None,
     ):
@@ -140,11 +162,11 @@ class InventoryService:
 
         try:
             if movement_type == "IN":
-                item.add_stock(quantity, reference=reference, notes=notes)
+                item.add_stock(quantity, warehouse_id=warehouse_id, reference=reference, notes=notes)
                 action = "STOCK_INCREASED"
                 qty_change = quantity
             elif movement_type == "OUT":
-                item.remove_stock(quantity, reference=reference, notes=notes)
+                item.remove_stock(quantity, warehouse_id=warehouse_id, reference=reference, notes=notes)
                 action = "STOCK_DECREASED"
                 qty_change = -quantity
             else:

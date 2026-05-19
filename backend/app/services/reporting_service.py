@@ -22,6 +22,7 @@ class ReportingService:
         headers = ["Code", "Name", "Type", "Department", "Location", "Status", "Value"]
         data = []
         for a in assets:
+            a.update_current_value() # Dynamically update current value to today's real-time value
             data.append([
                 a.asset_code,
                 a.name,
@@ -50,6 +51,8 @@ class ReportingService:
             query = query.filter(Asset.created_at <= date_to)
             
         assets = query.all()
+        for a in assets:
+            a.update_current_value() # Dynamically update current value to today's real-time value
         
         title = "Maintenance Report" if condition == 'needs_repair' else "Disposal Report"
         headers = ["Code", "Name", "Department", "Location", "Condition", "Current Value"]
@@ -94,6 +97,8 @@ class ReportingService:
             if date_to:
                 query = query.filter(Asset.created_at <= date_to)
             assets = query.all()
+            for a in assets:
+                a.update_current_value() # Dynamically update current value to today's real-time value
             
             data.append([
                 d.name,

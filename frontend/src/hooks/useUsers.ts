@@ -8,13 +8,17 @@ export interface InternalUser {
   role: string;
   is_active: boolean;
   last_login: string | null;
+  first_name?: string;
+  last_name?: string;
 }
 
-export const useUsers = (params: { page?: number; role?: string; q?: string } = {}) => {
+export const useUsers = (params: { page?: number; role?: string; q?: string; search?: string } = {}) => {
   return useQuery({
     queryKey: ['users', params],
     queryFn: async () => {
-      const response = await api.get<{ users: InternalUser[], pagination: any }>('/users', { params });
+      const { search, ...rest } = params;
+      const apiParams = { ...rest, q: rest.q || search };
+      const response = await api.get<{ users: InternalUser[], pagination: any }>('/users', { params: apiParams });
       return response.data;
     }
   });

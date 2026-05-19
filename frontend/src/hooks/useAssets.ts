@@ -6,7 +6,7 @@ export const useAssets = (params: any = {}) => {
   return useQuery({
     queryKey: ['assets', params],
     queryFn: async () => {
-      const response = await api.get<{ assets: Asset[], pagination: any }>('/assets/', { params });
+      const response = await api.get<{ assets: Asset[], pagination: any }>('/assets', { params });
       return response.data;
     },
   });
@@ -27,7 +27,7 @@ export const useCreateAsset = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: Partial<Asset>) => {
-      const response = await api.post('/assets/', data);
+      const response = await api.post('/assets', data);
       return response.data;
     },
     onSuccess: () => {

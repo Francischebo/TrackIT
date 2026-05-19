@@ -11,34 +11,11 @@ interface Insight {
   trend?: string;
 }
 
-const INSIGHTS: Insight[] = [
-  {
-    id: '1',
-    type: 'positive',
-    title: 'Asset Utilization Up',
-    description: 'Infrastructure utilization has increased by 14% compared to the previous month.',
-    value: '+14%',
-    trend: 'Improving'
-  },
-  {
-    id: '2',
-    type: 'warning',
-    title: 'Maintenance Alert',
-    description: '3 high-value servers in the Finance Dept are nearing their useful life limit.',
-    value: '3 Assets',
-    trend: 'Critical'
-  },
-  {
-    id: '3',
-    type: 'info',
-    title: 'Value Appreciation',
-    description: 'Current inventory valuation is optimized with minimal overhead leak detected.',
-    value: 'KES 2.4M',
-    trend: 'Stable'
-  }
-];
+interface AIInsightsProps {
+  insights?: Insight[];
+}
 
-export const AIInsights: React.FC = () => {
+export const AIInsights: React.FC<AIInsightsProps> = ({ insights = [] }) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -50,8 +27,11 @@ export const AIInsights: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        {INSIGHTS.map((insight, index) => (
-          <motion.div
+        {insights.length === 0 ? (
+          <div className="text-sm text-slate-400 p-4 text-center">No insights available at this time.</div>
+        ) : (
+          insights.map((insight, index) => (
+            <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
@@ -81,22 +61,24 @@ export const AIInsights: React.FC = () => {
               </div>
             </div>
           </motion.div>
-        ))}
+        )))}
       </div>
 
       <div className="p-6 bg-slate-900 rounded-[2rem] text-white overflow-hidden relative group">
          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-700">
             <ShieldCheck className="w-16 h-16" />
          </div>
-         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Predictive Logic</p>
-         <h4 className="text-sm font-bold leading-tight">Forecast: Asset value expected to stabilize in Q4 with 2.1% growth.</h4>
+         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Predictive Logic Engine</p>
+         <h4 className="text-sm font-bold leading-tight">
+           Live Data Evaluation Active. System continuously monitoring movement variance and stock thresholds.
+         </h4>
          <div className="mt-4 flex gap-1">
             {[1, 2, 3, 4, 5].map(i => (
               <div key={i} className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }}
-                  animate={{ width: '70%' }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 2, repeat: Infinity, delay: i * 0.1 }}
                   className="h-full bg-brand-primary"
                 />
               </div>

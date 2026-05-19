@@ -18,15 +18,42 @@ analytics_bp = Blueprint("analytics", __name__)
 def get_summary():
     """Get high-level dashboard KPIs."""
     org_id = get_current_organisation_id()
-    inventory = AnalyticsService.get_inventory_summary(org_id)
-    valuation = AnalyticsService.get_inventory_valuation(org_id)
+    warehouse_id = request.args.get('warehouse_id', type=int)
+
+    inventory = AnalyticsService.get_inventory_summary(org_id, warehouse_id=warehouse_id)
+    valuation = AnalyticsService.get_inventory_valuation(org_id, warehouse_id=warehouse_id)
+    assets = AnalyticsService.get_asset_summary(org_id, warehouse_id=warehouse_id)
+    geospatial = AnalyticsService.get_geospatial_stats(org_id)
+    compliance = AnalyticsService.get_compliance_stats(org_id)
+    recent_activity = AnalyticsService.get_recent_activity(org_id, limit=7)
+    movement_stats = AnalyticsService.get_movement_trends(org_id, days=7)
+    insights = AnalyticsService.generate_insights(org_id)
+
+    from flask import g
+    from app.models.organization import Organization
+    org = Organization.query.get(org_id)
+    currency = org.preferences.get("currency", "KES") if org and org.preferences else "KES"
+
+    # Robust calculation of total valuation (Inventory + Assets)
+    try:
+        inv_val = float(valuation or 0)
+        asset_val = float(assets.get("total_current_value", 0)) if isinstance(assets, dict) else 0.0
+        total_valuation = inv_val + asset_val
+    except (TypeError, ValueError):
+        total_valuation = 0.0
 
     return (
         jsonify(
             {
                 "inventory": inventory,
-                "total_valuation": valuation,
-                "currency": "USD",
+                "total_valuation": total_valuation,
+                "currency": currency,
+                "assets": assets,
+                "geospatial": geospatial,
+                "compliance": compliance,
+                "recent_activity": recent_activity,
+                "movement_stats": movement_stats,
+                "insights": insights
             }
         ),
         200,

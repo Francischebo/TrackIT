@@ -146,20 +146,26 @@ class Asset(db.Model):
         years_used = max(
             0.0, (datetime.utcnow().date() - self.purchase_date).days / 365.25
         )
+        
+        from decimal import Decimal
+        purchase_value_dec = Decimal(str(self.purchase_value))
+        useful_life_dec = Decimal(str(self.useful_life))
+        years_used_dec = Decimal(str(years_used))
+        
         annual_depreciation = (
-            self.purchase_value / self.useful_life if self.useful_life else 0
+            purchase_value_dec / useful_life_dec if useful_life_dec else Decimal('0')
         )
-        depreciated_value = self.purchase_value - (
-            annual_depreciation * years_used
+        depreciated_value = purchase_value_dec - (
+            annual_depreciation * years_used_dec
         )
-        remaining_life = max(0.0, self.useful_life - years_used)
+        remaining_life = max(0.0, float(self.useful_life) - years_used)
 
         return {
-            "purchase_value": self.purchase_value,
+            "purchase_value": float(purchase_value_dec),
             "useful_life_years": self.useful_life,
             "years_used": round(years_used, 2),
-            "annual_depreciation": round(annual_depreciation, 2),
-            "current_value": round(max(0.0, depreciated_value), 2),
+            "annual_depreciation": round(float(annual_depreciation), 2),
+            "current_value": round(float(max(Decimal('0'), depreciated_value)), 2),
             "remaining_life_years": round(remaining_life, 2),
             "depreciation_method": self.depreciation_method,
         }
@@ -172,12 +178,18 @@ class Asset(db.Model):
         years_used = (
             datetime.utcnow().date() - self.purchase_date
         ).days / 365.25
-        annual_depreciation = self.purchase_value / self.useful_life
-        depreciated_value = self.purchase_value - (
-            annual_depreciation * years_used
+        
+        from decimal import Decimal
+        purchase_value_dec = Decimal(str(self.purchase_value))
+        useful_life_dec = Decimal(str(self.useful_life))
+        years_used_dec = Decimal(str(years_used))
+        
+        annual_depreciation = purchase_value_dec / useful_life_dec if useful_life_dec else Decimal('0')
+        depreciated_value = purchase_value_dec - (
+            annual_depreciation * years_used_dec
         )
 
-        self.current_value = max(0, depreciated_value)
+        self.current_value = max(Decimal('0'), depreciated_value)
 
     def __repr__(self):
         return f"<Asset {self.asset_code}>"

@@ -7,6 +7,7 @@ from app.errors import NotFoundError, ConflictError, ValidationError
 from app.db_utils import transaction_retry
 from datetime import datetime
 from app.services.event_bus import event_bus
+from flask import current_app
 
 class AssetService:
     """Service layer for asset business logic."""
@@ -41,15 +42,24 @@ class AssetService:
 
     @transaction_retry(max_retries=3)
     def create_asset(self, org_id, validated_data):
+        current_app.logger.debug(
+            "create_asset called",
+            extra={"org_id": org_id, "data_keys": list(validated_data.keys())},
+        )
         # validate department exists
         dept = organization.Department.query.filter_by(
             id=validated_data["department_id"], organisation_id=org_id
         ).first()
         if not dept:
+            current_app.logger.warning(
+                "create_asset: invalid department",
+                extra={"department_id": validated_data.get("department_id")},
+            )
             raise ValidationError("Invalid department")
 
-        # Purchase date cannot be in the future
-        if validated_data["purchase_date"] > datetime.utcnow().date():
+        # Purchase date cannot be in the future (allow 1 day buffer for timezone differences)
+        from datetime import timedelta
+        if validated_data["purchase_date"] > (datetime.utcnow().date() + timedelta(days=1)):
             raise ValidationError("Purchase date cannot be in the future")
 
         # Get organization for code prefix
@@ -75,6 +85,10 @@ class AssetService:
         if validated_data.get("serial_number") and self.repo.exists_serial(
             org_id, validated_data.get("serial_number")
         ):
+            current_app.logger.warning(
+                "create_asset: serial conflict",
+                extra={"serial": validated_data.get("serial_number")},
+            )
             raise ConflictError("Serial number already exists")
 
         # Generate signed QR code data using system URL for security
@@ -91,6 +105,70 @@ class AssetService:
         new_asset = self.repo.create_asset(
             org_id, validated_data, session=self.session
         )
+
+        # Sync with Inventory (Safely within current transaction without calling nested service commits)
+        try:
+            from app.models.inventory import InventoryItem, StockMovementType, StockMovement
+            
+            derived_sku = f"ASSET-{new_asset.type.upper()}-{new_asset.name.upper().replace(' ', '-')}"
+            
+            existing_item = InventoryItem.query.filter_by(
+                organisation_id=org_id, 
+                name=new_asset.name
+            ).first()
+            
+            if not existing_item:
+                existing_item = InventoryItem(
+                    organisation_id=org_id,
+                    name=new_asset.name,
+                    sku=derived_sku[:100],
+                    description=f"Aggregate inventory for {new_asset.type} assets: {new_asset.name}",
+                    unit_price=float(new_asset.purchase_value),
+                    unit="unit",
+                    reorder_level=0,
+                    quantity=0,
+                )
+                self.session.add(existing_item)
+                self.session.flush() # Flush to get ID
+                
+            # Increment stock manually to avoid inner commits
+            existing_item.quantity += 1
+            if new_asset.warehouse_id:
+                from app.models.stock_levels import WarehouseStock
+                wh_stock = WarehouseStock.query.filter_by(
+                    item_id=existing_item.id, warehouse_id=new_asset.warehouse_id
+                ).first()
+                if not wh_stock:
+                    wh_stock = WarehouseStock(item_id=existing_item.id, warehouse_id=new_asset.warehouse_id, quantity_on_hand=1)
+                    self.session.add(wh_stock)
+                else:
+                    wh_stock.quantity_on_hand += 1
+
+            movement = StockMovement(
+                item_id=existing_item.id,
+                type=StockMovementType.IN.value,
+                quantity=1,
+                reference=f"Asset Registration: {new_asset.asset_code}",
+                notes=f"Auto-increment from asset registration of {new_asset.name}",
+                date=db.func.now(),
+            )
+            self.session.add(movement)
+            
+        except Exception as inv_err:
+            current_app.logger.error(
+                "create_asset: inventory sync failed", 
+                extra={"error": str(inv_err), "asset_code": new_asset.asset_code}
+            )
+            # We don't fail asset creation if inventory sync fails, but we log it
+            # In a robust ERP, this might be a mandatory transaction
+
+        # Update bin status if assigned
+        if new_asset.bin_id:
+            from app.models.location_topology import WarehouseBin
+            new_bin = WarehouseBin.query.get(new_asset.bin_id)
+            if new_bin:
+                new_bin.status = "occupied"
+
         # set initial current value via model method
         new_asset.update_current_value()
         AuditService.log_asset_change(
@@ -103,10 +181,20 @@ class AssetService:
             },
             session=self.session,
         )
-        self.session.commit()
+        try:
+            self.session.commit()
+        except Exception as e:
+            current_app.logger.error(
+                "create_asset: commit failed", extra={"error": str(e)}
+            )
+            self.session.rollback()
+            raise
         
         event_bus.publish("ASSET_CREATED", {"asset_id": new_asset.id, "asset_code": new_asset.asset_code}, organisation_id=org_id)
-        
+        current_app.logger.info(
+            "create_asset: success",
+            extra={"asset_id": new_asset.id, "asset_code": new_asset.asset_code},
+        )
         return new_asset
 
     @transaction_retry(max_retries=3)
@@ -128,6 +216,7 @@ class AssetService:
             "assigned_to": asset_obj.assigned_to,
             "location": asset_obj.location,
             "condition": asset_obj.condition,
+            "bin_id": asset_obj.bin_id,
         }
 
         if "department_id" in data:
@@ -139,12 +228,24 @@ class AssetService:
 
         updatable_fields = {
             k: data[k]
-            for k in ["name", "assigned_to", "location", "condition"]
+            for k in ["name", "assigned_to", "location", "condition", "warehouse_id", "bin_id"]
             if k in data
         }
         self.repo.update_asset(asset_obj, updatable_fields)
         if "department_id" in data:
             asset_obj.department_id = data["department_id"]
+
+        # Manage bin status interoperability
+        if "bin_id" in data and data["bin_id"] != old_values["bin_id"]:
+            from app.models.location_topology import WarehouseBin
+            if old_values["bin_id"]:
+                old_bin = WarehouseBin.query.get(old_values["bin_id"])
+                if old_bin:
+                    old_bin.status = "available"
+            if data["bin_id"]:
+                new_bin = WarehouseBin.query.get(data["bin_id"])
+                if new_bin:
+                    new_bin.status = "occupied"
 
         asset_obj.updated_at = db.func.now()
         AuditService.log_asset_change(
@@ -213,7 +314,53 @@ class AssetService:
             "name": asset_obj.name,
             "status": asset_obj.status,
         }
+        
+        # Free up bin space
+        old_bin_id = asset_obj.bin_id
+        
         self.repo.delete_asset(asset_obj, session=self.session)
+        
+        if old_bin_id:
+            from app.models.location_topology import WarehouseBin
+            old_bin = WarehouseBin.query.get(old_bin_id)
+            if old_bin:
+                old_bin.status = "available"
+
+        # Sync with Inventory (Decrement) Safely
+        try:
+            from app.models.inventory import InventoryItem, StockMovementType, StockMovement
+            
+            existing_item = InventoryItem.query.filter_by(
+                organisation_id=org_id, 
+                name=asset_obj.name
+            ).first()
+            
+            if existing_item and existing_item.quantity > 0:
+                existing_item.quantity -= 1
+                
+                if asset_obj.warehouse_id:
+                    from app.models.stock_levels import WarehouseStock
+                    wh_stock = WarehouseStock.query.filter_by(
+                        item_id=existing_item.id, warehouse_id=asset_obj.warehouse_id
+                    ).first()
+                    if wh_stock and wh_stock.quantity_on_hand > 0:
+                        wh_stock.quantity_on_hand -= 1
+
+                movement = StockMovement(
+                    item_id=existing_item.id,
+                    type=StockMovementType.OUT.value,
+                    quantity=1,
+                    reference=f"Asset Deletion: {asset_obj.asset_code}",
+                    notes=f"Auto-decrement from asset deletion of {asset_obj.name}",
+                    date=db.func.now(),
+                )
+                self.session.add(movement)
+        except Exception as inv_err:
+            current_app.logger.error(
+                "delete_asset: inventory sync failed", 
+                extra={"error": str(inv_err), "asset_code": asset_obj.asset_code}
+            )
+
         AuditService.log_action(
             action="ASSET_DELETED",
             entity_type="asset",

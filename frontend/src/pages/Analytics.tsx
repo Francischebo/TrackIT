@@ -84,21 +84,21 @@ const Analytics = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <StatsCard 
                     title="System Efficiency" 
-                    value="94.2%" 
+                    value={`${data?.compliance?.compliance_score || 0}%`} 
                     icon={Zap} 
                     color="amber"
-                    description="Optimal throughput"
+                    description="Overall system compliance"
                     loading={isLoading}
-                    trend={{ value: 4.2, isUp: true }}
+                    trend={data?.compliance?.trend || { value: 0, isUp: true }}
                   />
                   <StatsCard 
                     title="Asset ROI" 
-                    value="22.5%" 
+                    value={`${data?.assets?.roi || 0}%`} 
                     icon={TrendingUp} 
                     color="emerald"
                     description="Value recovery rate"
                     loading={isLoading}
-                    trend={{ value: 1.8, isUp: true }}
+                    trend={data?.assets?.trend || { value: 0, isUp: true }}
                   />
                 </div>
 
@@ -143,26 +143,30 @@ const Analytics = () => {
                             <h4 className="font-bold text-slate-800 tracking-tight">Status Distribution</h4>
                          </div>
                          <div className="space-y-8 flex-1 flex flex-col justify-center">
-                            {[
-                              { label: 'In Use', count: 48, color: 'bg-emerald-500', pct: 65 },
-                              { label: 'Maintenance', count: 12, color: 'bg-amber-500', pct: 15 },
-                              { label: 'Reserved', count: 24, color: 'bg-indigo-500', pct: 20 },
-                            ].map(item => (
-                              <div key={item.label} className="space-y-3">
+                            {Object.entries(data?.assets?.status_breakdown || {}).map(([label, count]) => {
+                              const pct = Math.round((Number(count) / (data?.assets?.total_assets || 1)) * 100);
+                              let color = 'bg-slate-500';
+                              if (label.toLowerCase() === 'active' || label.toLowerCase() === 'in use') color = 'bg-emerald-500';
+                              if (label.toLowerCase() === 'maintenance') color = 'bg-amber-500';
+                              if (label.toLowerCase() === 'disposed') color = 'bg-rose-500';
+                              if (label.toLowerCase() === 'reserved') color = 'bg-indigo-500';
+                              
+                              return (
+                              <div key={label} className="space-y-3">
                                  <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-wider">
-                                    <span className="text-slate-400">{item.label}</span>
-                                    <span className="text-slate-900">{item.count} Assets</span>
+                                    <span className="text-slate-400">{label}</span>
+                                    <span className="text-slate-900">{count} Assets</span>
                                  </div>
                                  <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden">
                                     <motion.div 
                                       initial={{ width: 0 }}
-                                      animate={{ width: `${item.pct}%` }}
+                                      animate={{ width: `${pct}%` }}
                                       transition={{ duration: 1, delay: 0.2 }}
-                                      className={cn("h-full", item.color)}
+                                      className={cn("h-full", color)}
                                     />
                                  </div>
                               </div>
-                            ))}
+                            )})}
                          </div>
                       </div>
                    </div>
@@ -181,21 +185,24 @@ const Analytics = () => {
                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                    </div>
                    <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
-                      {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                        <div key={i} className="flex gap-4 group/item">
+                      {(data?.recent_activity || []).map(activity => (
+                        <div key={activity.id} className="flex gap-4 group/item">
                            <div className="w-1.5 h-12 bg-slate-100 rounded-full group-hover/item:bg-brand-primary transition-colors flex-shrink-0" />
                            <div className="space-y-1">
-                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">3m ago • Warehouse A</p>
-                              <h5 className="text-xs font-bold text-slate-800 leading-tight">Asset Scan: Verification successful.</h5>
+                              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{new Date(activity.created_at).toLocaleString()}</p>
+                              <h5 className="text-xs font-bold text-slate-800 leading-tight">{activity.action.replace(/_/g, ' ')}</h5>
                               <div className="flex items-center gap-2 mt-2">
                                  <div className="w-4 h-4 rounded-full bg-indigo-50 flex items-center justify-center">
                                     <History className="w-2.5 h-2.5 text-indigo-600" />
                                  </div>
-                                 <span className="text-[10px] font-bold text-indigo-600 uppercase">Movement Detected</span>
+                                 <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">System Recorded • {activity.entity_type}</span>
                               </div>
                            </div>
                         </div>
                       ))}
+                      {!data?.recent_activity?.length && !isLoading && (
+                        <div className="text-center text-sm font-medium text-slate-400 py-8">No recent activity found.</div>
+                      )}
                    </div>
                    <div className="p-4 bg-slate-50 text-center border-t border-slate-100">
                       <button className="text-[10px] font-black text-brand-primary uppercase tracking-widest hover:underline">View Full Activity Log</button>
@@ -222,8 +229,8 @@ const Analytics = () => {
                     </div>
                     <div className="mt-auto space-y-6">
                        <div className="flex items-end justify-between">
-                          <span className="text-7xl font-black">12</span>
-                          <span className="text-sm font-bold text-brand-400">+2 New Nodes Active</span>
+                          <span className="text-7xl font-black">{data?.geospatial?.total_nodes || 0}</span>
+                          <span className="text-sm font-bold text-brand-400">Total Facilities</span>
                        </div>
                        <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
                           <motion.div 
@@ -243,18 +250,12 @@ const Analytics = () => {
               <div className="enterprise-card p-12 bg-white shadow-xl shadow-slate-200/50 border-none h-[600px] flex flex-col justify-center">
                  <h3 className="text-2xl font-bold text-slate-800 mb-8">Location Distribution</h3>
                  <div className="space-y-6">
-                   <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
-                     <span className="font-bold text-slate-600">HQ Warehouse</span>
-                     <span className="px-3 py-1 bg-brand-50 text-brand-600 rounded-md font-black text-xs">65%</span>
-                   </div>
-                   <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
-                     <span className="font-bold text-slate-600">Branch Office A</span>
-                     <span className="px-3 py-1 bg-brand-50 text-brand-600 rounded-md font-black text-xs">20%</span>
-                   </div>
-                   <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
-                     <span className="font-bold text-slate-600">Remote Sites</span>
-                     <span className="px-3 py-1 bg-brand-50 text-brand-600 rounded-md font-black text-xs">15%</span>
-                   </div>
+                   {(data?.geospatial?.distribution || []).map(dist => (
+                     <div key={dist.name} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
+                       <span className="font-bold text-slate-600">{dist.name}</span>
+                       <span className="px-3 py-1 bg-brand-50 text-brand-600 rounded-md font-black text-xs">{dist.pct}%</span>
+                     </div>
+                   ))}
                  </div>
               </div>
             </div>
@@ -266,25 +267,25 @@ const Analytics = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <StatsCard 
                     title="Audit Variance" 
-                    value="0.02%" 
+                    value={`${data?.compliance?.audit_variance || 0}%`} 
                     icon={ShieldCheck} 
                     color="indigo"
                     description="Physical vs Digital Records"
                     loading={isLoading}
-                    trend={{ value: 0.01, isUp: false }}
+                    trend={data?.compliance?.variance_trend || { value: 0, isUp: false }}
                   />
                   <StatsCard 
                     title="Compliance Score" 
-                    value="98.5%" 
+                    value={`${data?.compliance?.compliance_score || 0}%`} 
                     icon={TrendingUp} 
                     color="emerald"
                     description="Regulatory Alignment"
                     loading={isLoading}
-                    trend={{ value: 0.5, isUp: true }}
+                    trend={data?.compliance?.trend || { value: 0, isUp: true }}
                   />
                 </div>
                 <div className="enterprise-card p-10 bg-white border-none shadow-xl shadow-slate-200/50 min-h-[500px]">
-                   <AIInsights />
+                   <AIInsights insights={data?.insights || []} />
                 </div>
               </div>
               <div className="xl:col-span-1 space-y-8">

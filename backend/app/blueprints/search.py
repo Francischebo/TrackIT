@@ -16,63 +16,90 @@ def global_search():
         return jsonify({"assets": [], "inventory": [], "users": [], "departments": []}), 200
 
     search_pattern = f"%{query}%"
+    terms = query.split()
 
     # --- Phase 1: Search Base Entities & Gather IDs for IN operations ---
     
-    # Departments
-    departments_query = Department.query.filter(
+    # Departments (Match ALL terms)
+    dept_filters = [
         Department.organisation_id == org_id,
-        Department.is_active == True,
-        db.or_(
-            Department.name.ilike(search_pattern),
-            Department.code.ilike(search_pattern)
-        )
-    ).all()
+        Department.is_active == True
+    ]
+    for term in terms:
+        term_pattern = f"%{term}%"
+        dept_filters.append(db.or_(
+            Department.name.ilike(term_pattern),
+            Department.code.ilike(term_pattern)
+        ))
+
+    departments_query = Department.query.filter(*dept_filters).all()
     dept_ids = [d.id for d in departments_query]
 
-    # Users
-    users_query = User.query.filter(
+    # Users (Match ALL terms)
+    user_filters = [
         User.organisation_id == org_id,
-        User.is_active == True,
-        db.or_(
-            User.username.ilike(search_pattern),
-            User.email.ilike(search_pattern),
-            User.first_name.ilike(search_pattern),
-            User.last_name.ilike(search_pattern)
-        )
-    ).all()
-    # We can track user names to search assigned assets
+        User.is_active == True
+    ]
+    for term in terms:
+        term_pattern = f"%{term}%"
+        user_filters.append(db.or_(
+            User.username.ilike(term_pattern),
+            User.email.ilike(term_pattern),
+            User.first_name.ilike(term_pattern),
+            User.last_name.ilike(term_pattern)
+        ))
+
+    users_query = User.query.filter(*user_filters).all()
     user_names = [f"{u.first_name} {u.last_name}" for u in users_query]
 
-    # --- Phase 2: Search Cross-Entities using IN operations and JOINs ---
+    # --- Phase 2: Search Cross-Entities ---
 
-    # Search Assets using joins to department and IN operations
-    asset_conditions = [
-        Asset.name.ilike(search_pattern),
-        Asset.asset_code.ilike(search_pattern),
-        Asset.serial_number.ilike(search_pattern)
+    # Search Assets (Match ALL terms)
+    asset_filters = [
+        Asset.organisation_id == org_id,
+        Asset.is_active == True
     ]
-    if dept_ids:
-        asset_conditions.append(Asset.department_id.in_(dept_ids))
-    if user_names:
-        asset_conditions.append(Asset.assigned_to.in_(user_names))
+    
+    # Each term must match at least one field
+    for term in terms:
+        term_pattern = f"%{term}%"
+        term_conditions = [
+            Asset.name.ilike(term_pattern),
+            Asset.asset_code.ilike(term_pattern),
+            Asset.serial_number.ilike(term_pattern)
+        ]
+        # Include matches from related dept/user if they matched the term
+        # (Simplified: if any dept matched the whole query, include its assets)
+        # But per-term logic is more robust.
+        asset_filters.append(db.or_(*term_conditions))
 
-    # Using outerjoin to eagerly fetch related department if needed (efficiency)
+    # Add broad matches for found departments/users
+    final_asset_conditions = [db.and_(*asset_filters)]
+    if dept_ids:
+        final_asset_conditions.append(Asset.department_id.in_(dept_ids))
+    if user_names:
+        final_asset_conditions.append(Asset.assigned_to.in_(user_names))
+
     assets_query = Asset.query.outerjoin(Department).filter(
         Asset.organisation_id == org_id,
         Asset.is_active == True,
-        db.or_(*asset_conditions)
+        db.or_(*final_asset_conditions)
     ).limit(10).all()
 
-    # Search Inventory
-    inventory_query = InventoryItem.query.filter(
+    # Search Inventory (Match ALL terms)
+    inventory_filters = [
         InventoryItem.organisation_id == org_id,
-        InventoryItem.is_active == True,
-        db.or_(
-            InventoryItem.name.ilike(search_pattern),
-            InventoryItem.sku.ilike(search_pattern)
-        )
-    ).limit(10).all()
+        InventoryItem.is_active == True
+    ]
+    for term in terms:
+        term_pattern = f"%{term}%"
+        inventory_filters.append(db.or_(
+            InventoryItem.name.ilike(term_pattern),
+            InventoryItem.sku.ilike(term_pattern),
+            InventoryItem.description.ilike(term_pattern)
+        ))
+
+    inventory_query = InventoryItem.query.filter(*inventory_filters).limit(10).all()
 
     # --- Phase 3: Format and Return ---
     

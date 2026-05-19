@@ -12,9 +12,14 @@ class TransferRequest(db.Model):
     organisation_id = db.Column(
         db.Integer, db.ForeignKey("organizations.id"), nullable=False
     )
+    item_type = db.Column(db.String(20), default="asset")  # 'asset' or 'inventory'
     asset_id = db.Column(
-        db.Integer, db.ForeignKey("assets.id"), nullable=False
+        db.Integer, db.ForeignKey("assets.id"), nullable=True
     )
+    inventory_item_id = db.Column(
+        db.Integer, db.ForeignKey("inventory_items.id"), nullable=True
+    )
+    quantity = db.Column(db.Integer, default=1)
     requested_by = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=False
     )
@@ -37,6 +42,8 @@ class TransferRequest(db.Model):
     __table_args__ = (
         db.Index("ix_transfer_requests_org_id", "organisation_id"),
         db.Index("ix_transfer_requests_asset_id", "asset_id"),
+        db.Index("ix_transfer_requests_inventory_id", "inventory_item_id"),
+        db.Index("ix_transfer_requests_item_type", "item_type"),
         db.Index("ix_transfer_requests_status", "status"),
         db.Index("ix_transfer_requests_requested_by", "requested_by"),
         db.Index("ix_transfer_requests_from_dept", "from_department_id"),
@@ -46,6 +53,9 @@ class TransferRequest(db.Model):
 
     asset = db.relationship(
         "Asset", back_populates="transfer_requests", lazy=True
+    )
+    inventory_item = db.relationship(
+        "InventoryItem", lazy=True
     )
     requester = db.relationship("User", foreign_keys=[requested_by])
     reviewer = db.relationship("User", foreign_keys=[reviewed_by])

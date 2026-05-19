@@ -23,8 +23,18 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Frontend Validation
+    if (!formData.name.trim()) return addToast('error', 'Validation Error', 'Item name is required');
+    if (!formData.sku.trim()) return addToast('error', 'Validation Error', 'SKU is required');
+    
     try {
-      await createItem.mutateAsync(formData);
+      await createItem.mutateAsync({
+        ...formData,
+        sku: formData.sku.trim(),
+        unit_price: Number(formData.unit_price),
+        reorder_level: Number(formData.reorder_level),
+      });
       addToast('success', 'SKU Created', `${formData.name} has been added to inventory.`);
       onClose();
       setFormData({
@@ -35,8 +45,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
         unit_price: 0,
         unit: 'pcs',
       });
-    } catch (err) {
-      addToast('error', 'Creation Failed', 'Please verify form data and try again.');
+    } catch (err: any) {
+      // Extract detailed validation errors if available
+      const backendErrors = err.response?.data?.validation_errors;
+      let msg = err.response?.data?.message || 'Please verify form data and try again.';
+      
+      if (backendErrors) {
+        const firstError = Object.values(backendErrors)[0];
+        if (Array.isArray(firstError)) msg = firstError[0];
+      }
+      
+      addToast('error', 'Creation Failed', msg);
     }
   };
 
@@ -50,7 +69,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
         <>
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button 
-            onClick={handleSubmit} 
+            type="submit"
+            form="inventory-form"
             disabled={createItem.isPending}
             className="btn-primary"
           >
@@ -59,7 +79,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="inventory-form" onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -74,7 +94,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
               onChange={e => setFormData({...formData, name: e.target.value})}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                 <Hash className="w-3 h-3" /> SKU / Model
@@ -83,7 +103,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
                 type="text" 
                 required
                 className="input-field font-mono" 
-                placeholder="SKU-XXXXXX"
+                placeholder="e.g. LAPTOP 001"
                 value={formData.sku}
                 onChange={e => setFormData({...formData, sku: e.target.value})}
               />
@@ -105,14 +125,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                 <DollarSign className="w-3 h-3" /> Unit Price (KES)
               </label>
               <input 
                 type="number" 
-                className="input-field" 
+                required
+                min="0"
+                step="0.01"
+                className="input-field"
                 value={formData.unit_price}
                 onChange={e => setFormData({...formData, unit_price: Number(e.target.value)})}
               />
@@ -123,6 +146,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ isOpen, onClose 
               </label>
               <input 
                 type="number" 
+                required
+                min="0"
                 className="input-field" 
                 value={formData.reorder_level}
                 onChange={e => setFormData({...formData, reorder_level: Number(e.target.value)})}

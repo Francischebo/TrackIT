@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_OPTIONS = [
-  'admin', 'manager', 'staff', 'dept_head', 'store_manager'
+  'admin', 'staff', 'dept_head', 'store_manager', 'viewer', 'auditor'
 ];
 
 const Users = () => {
@@ -60,9 +60,8 @@ const Users = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // Directly call API since hook might not exist yet for creation
-      const { data: api } = await import('../services/api');
-      await api.default.post('/users', newUser);
+      const api = (await import('../services/api')).default;
+      await api.post('/users', newUser);
       addToast('success', 'User Created', `${newUser.username} has been added to the institution.`);
       setIsModalOpen(false);
       setNewUser({ username: '', email: '', password: '', role: 'staff', first_name: '', last_name: '' });

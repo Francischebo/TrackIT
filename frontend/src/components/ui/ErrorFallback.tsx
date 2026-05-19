@@ -2,7 +2,7 @@ import React from 'react';
 import { AlertCircle, RotateCcw, Home } from 'lucide-react';
 
 interface ErrorFallbackProps {
-  error: Error;
+  error: any;
   resetErrorBoundary: () => void;
 }
 

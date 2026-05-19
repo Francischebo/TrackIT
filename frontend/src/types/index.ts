@@ -42,6 +42,9 @@ export interface Asset {
   location?: string;
   department_id?: number;
   department_name?: string;
+  serial_number?: string;
+  warehouse_id?: number;
+  bin_id?: number;
 }
 
 export interface Warehouse {
@@ -91,6 +94,8 @@ export interface AuditLog {
   action: string;
   entity_type: string;
   entity_id: string;
-  context: Record<string, any>;
+  context?: Record<string, any>;
+  details?: any;
+  ip_address?: string;
   created_at: string;
 }

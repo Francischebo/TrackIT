@@ -2,15 +2,24 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 import type { RestockAlert } from '../types';
 
-export const useDashboardSummary = () => {
+export const useDashboardSummary = (warehouseId?: number) => {
   return useQuery({
-    queryKey: ['dashboard-summary'],
+    queryKey: ['dashboard-summary', warehouseId],
     queryFn: async () => {
-      const response = await api.get('/analytics/dashboard/summary');
+      const path = warehouseId 
+        ? `/analytics/dashboard/summary?warehouse_id=${warehouseId}`
+        : '/analytics/dashboard/summary';
+      const response = await api.get(path);
       return response.data as { 
         inventory: { total_items: number; health: Record<string, number> };
         total_valuation: number;
         currency: string;
+        assets: { total_assets: number; total_purchase_value: number; total_current_value: number; roi: number; trend: { value: number; isUp: boolean }; status_breakdown: Record<string, number> };
+        geospatial: { total_nodes: number; distribution: { name: string; count: number; pct: number }[] };
+        compliance: { audit_variance: number; compliance_score: number; trend: { value: number; isUp: boolean }; variance_trend: { value: number; isUp: boolean } };
+        recent_activity: { id: number; action: string; entity_type: string; details: any; created_at: string }[];
+        movement_stats: Record<string, { IN: number; OUT: number }>;
+        insights: any[];
       };
     },
     refetchInterval: 30000,

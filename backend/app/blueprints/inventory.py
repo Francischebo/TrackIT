@@ -204,6 +204,7 @@ def update_stock(item_id):
 
     movement_type = validated_data["type"]
     quantity = validated_data["quantity"]
+    warehouse_id = validated_data.get("warehouse_id")
     reference = validated_data.get("reference")
     notes = validated_data.get("notes")
 
@@ -212,6 +213,7 @@ def update_stock(item_id):
         org_id,
         movement_type,
         quantity,
+        warehouse_id=warehouse_id,
         reference=reference,
         notes=notes,
     )

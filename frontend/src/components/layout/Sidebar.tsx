@@ -102,6 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <Link
               key={item.path}
               to={item.path}
+              onClick={onClose}
               className={cn(
                 "group flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ease-out relative overflow-hidden",
                 isActive 
@@ -136,6 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           const isActive = location.pathname === item.path;
           
           const restrictedRoles: Record<string, UserRole[]> = {
+            '/analytics': ['admin', 'store_manager', 'auditor'],
             '/users': ['admin'],
             '/departments': ['admin'],
             '/settings': ['admin'],
@@ -149,6 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <Link
               key={item.path}
               to={item.path}
+              onClick={onClose}
               className={cn(
                 "group flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ease-out relative overflow-hidden",
                 isActive 

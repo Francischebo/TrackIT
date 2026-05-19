@@ -17,6 +17,23 @@ class TestTrackingAI(unittest.TestCase):
         self.org_id = 1
         self.user_id = 1
 
+        # Create Organization, Department, User to satisfy foreign key constraints
+        from app.models.organization import Organization, Department
+        from app.models.user import User
+
+        org = Organization(id=self.org_id, name="Test Org", code="TESTORG")
+        db.session.add(org)
+        db.session.commit()
+
+        dept = Department(id=1, name="IT Department", code="IT", organisation_id=self.org_id)
+        db.session.add(dept)
+        db.session.commit()
+
+        user = User(id=self.user_id, username="testuser", email="test@test.com", organisation_id=self.org_id, role="staff")
+        user.set_password("Password123!")
+        db.session.add(user)
+        db.session.commit()
+
         # Warehouses
         self.wh1 = Warehouse(
             organisation_id=self.org_id, name="Warehouse A", code="WHA"

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Package, Search, Plus, Minus, MoreVertical, Filter, AlertCircle, QrCode, ArrowUpRight } from 'lucide-react';
+import { Package, Search, Plus, Minus, MoreVertical, Filter, AlertCircle, QrCode, ArrowUpRight, ArrowRightLeft } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { cn } from '../lib/utils';
 import { StockAdjustmentModal } from '../components/ui/StockAdjustmentModal';
 import { useToast } from '../context/ToastContext';
 import { Can } from '../components/auth/Can';
 import { InventoryModal } from '../components/ui/InventoryModal';
+import { TransferRequestModal } from '../components/ui/TransferRequestModal';
 import { AssetQRCode } from '../components/ui/AssetQRCode';
 import { Modal } from '../components/ui/Modal';
 import { useAuth } from '../context/AuthContext';
@@ -15,8 +16,10 @@ const Inventory = () => {
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedItemForQR, setSelectedItemForQR] = useState<any>(null);
+  const [selectedItemForTransfer, setSelectedItemForTransfer] = useState<any>(null);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'IN' | 'OUT'>('IN');
   const [page, setPage] = useState(1);
   
@@ -30,6 +33,13 @@ const Inventory = () => {
     setAdjustmentType(type);
     setIsStockModalOpen(true);
   };
+
+  const openTransfer = (item: any) => {
+    setSelectedItemForTransfer(item);
+    setIsTransferModalOpen(true);
+  };
+
+
 
   return (
     <motion.div 
@@ -171,6 +181,13 @@ const Inventory = () => {
                         </Can>
                         <div className="w-px h-5 bg-slate-200 mx-1 hidden md:block" />
                         <button 
+                          onClick={() => openTransfer(item)}
+                          className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center hover:bg-brand-50 text-brand-primary rounded-lg transition-colors"
+                          title="Request Transfer"
+                        >
+                          <ArrowRightLeft className="w-4 h-4" />
+                        </button>
+                        <button 
                           onClick={() => setSelectedItemForQR(item)}
                           className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center hover:bg-brand-50 text-slate-400 hover:text-brand-primary rounded-lg transition-colors"
                           title="Generate SKU Tag"
@@ -222,6 +239,15 @@ const Inventory = () => {
       <InventoryModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+
+
+
+      <TransferRequestModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        inventoryItem={selectedItemForTransfer}
+        itemType="inventory"
       />
 
       <Modal 

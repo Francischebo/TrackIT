@@ -57,8 +57,14 @@ function AppContent() {
                     <Route path="/inventory" element={<Inventory />} />
                     <Route path="/assets" element={<Assets />} />
                     <Route path="/warehouses" element={<Warehouses />} />
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/audit-logs" element={<AuditLogs />} />
+                    <Route 
+                      path="/analytics" 
+                      element={
+                        <ProtectedRoute allowedRoles={['admin', 'store_manager', 'auditor']}>
+                          <Analytics />
+                        </ProtectedRoute>
+                      } 
+                    />
                     <Route path="/transfers" element={<Transfers />} />
                     <Route 
                       path="/users" 

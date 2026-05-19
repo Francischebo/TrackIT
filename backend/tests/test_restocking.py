@@ -14,6 +14,12 @@ class TestRestocking(unittest.TestCase):
         db.create_all()
 
         self.org_id = 1
+        # Create Organization to satisfy foreign key constraint
+        from app.models.organization import Organization
+        org = Organization(id=self.org_id, name="Test Org", code="TESTORG")
+        db.session.add(org)
+        db.session.commit()
+
         self.service = InventoryService()
 
         # Setup item

@@ -2,6 +2,7 @@ from sqlalchemy.orm import joinedload
 from app import db
 from app.models import asset
 from app.models import organization
+from app.models import location_topology
 
 class AssetRepository:
     """Repository for asset ORM operations."""
@@ -24,17 +25,25 @@ class AssetRepository:
         if department_id:
             query = query.filter_by(department_id=department_id)
         if search:
-            query = query.outerjoin(organization.Department).filter(
+            query = query.outerjoin(organization.Department).outerjoin(
+                location_topology.Warehouse, asset.Asset.warehouse_id == location_topology.Warehouse.id
+            ).outerjoin(
+                location_topology.WarehouseBin, asset.Asset.bin_id == location_topology.WarehouseBin.id
+            ).filter(
                 db.or_(
                     asset.Asset.name.ilike(f"%{search}%"),
                     asset.Asset.asset_code.ilike(f"%{search}%"),
                     asset.Asset.serial_number.ilike(f"%{search}%"),
                     asset.Asset.assigned_to.ilike(f"%{search}%"),
+                    asset.Asset.location.ilike(f"%{search}%"),
+                    asset.Asset.type.ilike(f"%{search}%"),
                     organization.Department.name.ilike(f"%{search}%"),
                     organization.Department.code.ilike(f"%{search}%"),
+                    location_topology.Warehouse.name.ilike(f"%{search}%"),
+                    location_topology.WarehouseBin.code.ilike(f"%{search}%"),
                 )
             )
-
+        query = query.order_by(asset.Asset.created_at.desc())
         return query.paginate(page=page, per_page=per_page, error_out=False)
 
     def get_asset(self, asset_id, org_id):

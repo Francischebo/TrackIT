@@ -95,15 +95,31 @@ const Tracking = () => {
   const processScan = async (data: string) => {
     setIsProcessing(true);
     try {
-      // Get current location if available
+      // Get precise current location asynchronously with high accuracy
       let lat = mapCenter[0];
       let lon = mapCenter[1];
       
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-          lat = pos.coords.latitude;
-          lon = pos.coords.longitude;
+      const getPreciseLocation = () => {
+        return new Promise<{lat: number, lon: number} | null>((resolve) => {
+          if (!navigator.geolocation) {
+            resolve(null);
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+            (err) => {
+              console.warn("Geolocation error:", err);
+              resolve(null);
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          );
         });
+      };
+
+      const preciseLoc = await getPreciseLocation();
+      if (preciseLoc) {
+        lat = preciseLoc.lat;
+        lon = preciseLoc.lon;
       }
 
       const response = await api.post('/tracking/scan', {

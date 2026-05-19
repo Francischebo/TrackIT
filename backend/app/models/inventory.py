@@ -76,14 +76,31 @@ class InventoryItem(db.Model):
     )
 
     @transaction_retry(max_retries=3)
-    def add_stock(self, quantity, reference=None, notes=None):
-        """Add stock (IN movement) with row-level locking"""
+    def add_stock(self, quantity, warehouse_id=None, reference=None, notes=None):
+        """Add stock (IN movement) with row-level locking and warehouse sync"""
         if quantity <= 0:
             raise ValueError("Quantity must be greater than 0")
 
         # Reload with lock
         item = InventoryItem.query.with_for_update().get(self.id)
         item.quantity += quantity
+
+        # Update Warehouse Stock if provided
+        if warehouse_id:
+            from app.models.stock_levels import WarehouseStock
+            wh_stock = WarehouseStock.query.with_for_update().filter_by(
+                item_id=self.id, warehouse_id=warehouse_id
+            ).first()
+            
+            if not wh_stock:
+                wh_stock = WarehouseStock(
+                    item_id=self.id,
+                    warehouse_id=warehouse_id,
+                    quantity_on_hand=quantity
+                )
+                db.session.add(wh_stock)
+            else:
+                wh_stock.quantity_on_hand += quantity
 
         movement = StockMovement(
             item_id=self.id,
@@ -97,19 +114,30 @@ class InventoryItem(db.Model):
 
         # Trigger health check
         from app.services.restock_service import RestockService
-
         RestockService.evaluate_stock_health(self.id)
 
     @transaction_retry(max_retries=3)
-    def remove_stock(self, quantity, reference=None, notes=None):
-        """Remove stock (OUT movement) with row-level locking"""
+    def remove_stock(self, quantity, warehouse_id=None, reference=None, notes=None):
+        """Remove stock (OUT movement) with row-level locking and warehouse sync"""
         if quantity <= 0:
             raise ValueError("Quantity must be greater than 0")
 
         # Reload with lock
         item = InventoryItem.query.with_for_update().get(self.id)
         if item.quantity < quantity:
-            raise ValueError("Insufficient stock")
+            raise ValueError("Insufficient total stock")
+
+        # Update Warehouse Stock if provided
+        if warehouse_id:
+            from app.models.stock_levels import WarehouseStock
+            wh_stock = WarehouseStock.query.with_for_update().filter_by(
+                item_id=self.id, warehouse_id=warehouse_id
+            ).first()
+            
+            if not wh_stock or wh_stock.quantity_on_hand < quantity:
+                raise ValueError("Insufficient stock in specified warehouse")
+            
+            wh_stock.quantity_on_hand -= quantity
 
         item.quantity -= quantity
         movement = StockMovement(
@@ -124,7 +152,6 @@ class InventoryItem(db.Model):
 
         # Trigger health check
         from app.services.restock_service import RestockService
-
         RestockService.evaluate_stock_health(self.id)
 
     def is_low_stock(self):

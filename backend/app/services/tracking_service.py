@@ -84,22 +84,29 @@ class TrackingService:
                         )
                         item_type = "asset"
                     elif parsed["type"] == "inventory":
-                        from app.models.item_instance import (
-                            ItemInstance,
-                        )
-
-                        instance = (
-                            ItemInstance.query.with_for_update()
-                            .join(InventoryItem)
-                            .filter(
-                                InventoryItem.organisation_id == org_id,
-                                ItemInstance.id == entity_id,
-                            )
+                        inventory_item = (
+                            InventoryItem.query.with_for_update()
+                            .filter_by(id=entity_id, organisation_id=org_id)
                             .first()
                         )
-                        if instance:
-                            item = instance
-                            item_type = "inventory_instance"
+                        if inventory_item:
+                            item = inventory_item
+                            item_type = "inventory"
+                        else:
+                            from app.models.item_instance import ItemInstance
+
+                            instance = (
+                                ItemInstance.query.with_for_update()
+                                .join(InventoryItem)
+                                .filter(
+                                    InventoryItem.organisation_id == org_id,
+                                    ItemInstance.id == entity_id,
+                                )
+                                .first()
+                            )
+                            if instance:
+                                item = instance
+                                item_type = "inventory_instance"
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -117,20 +124,29 @@ class TrackingService:
                 item = asset_obj
                 item_type = "asset"
             else:
-                from app.models.item_instance import ItemInstance
-
-                instance = (
-                    ItemInstance.query.with_for_update()
-                    .join(InventoryItem)
-                    .filter(
-                        InventoryItem.organisation_id == org_id,
-                        db.or_(ItemInstance.qr_code_data == qr_data, InventoryItem.sku == qr_data)
-                    )
+                inventory_item = (
+                    InventoryItem.query.with_for_update()
+                    .filter_by(sku=qr_data, organisation_id=org_id)
                     .first()
                 )
-                if instance:
-                    item = instance
-                    item_type = "inventory_instance"
+                if inventory_item:
+                    item = inventory_item
+                    item_type = "inventory"
+                else:
+                    from app.models.item_instance import ItemInstance
+
+                    instance = (
+                        ItemInstance.query.with_for_update()
+                        .join(InventoryItem)
+                        .filter(
+                            InventoryItem.organisation_id == org_id,
+                            db.or_(ItemInstance.qr_code_data == qr_data, InventoryItem.sku == qr_data)
+                        )
+                        .first()
+                    )
+                    if instance:
+                        item = instance
+                        item_type = "inventory_instance"
 
         if not item:
             raise NotFoundError("No item found matching this QR code")
@@ -204,15 +220,21 @@ class TrackingService:
         )
 
         # 4. Update Item State
+        from app.models.location_topology import WarehouseBin
+        
+        old_bin_id = getattr(item, "bin_id", None) if item_type != "inventory" else None
+
         if action_type == "CHECK_OUT":
-            item.warehouse_id = None
-            item.bin_id = None
+            if hasattr(item, "warehouse_id"):
+                item.warehouse_id = None
+            if hasattr(item, "bin_id"):
+                item.bin_id = None
             if item_type == "asset":
                 item.location = "Checked Out"
         else:
-            if warehouse_id is not None:
+            if warehouse_id is not None and hasattr(item, "warehouse_id"):
                 item.warehouse_id = warehouse_id
-            if bin_id is not None:
+            if bin_id is not None and hasattr(item, "bin_id"):
                 item.bin_id = bin_id
 
         if item_type == "asset":
@@ -235,7 +257,7 @@ class TrackingService:
             elif action_type == "AUDIT":
                 pass
 
-        else:  # inventory_instance
+        elif item_type == "inventory_instance":
             # Inventory instance state mapping
             if action_type == "CHECK_OUT":
                 item.status = "shipped"
@@ -245,6 +267,28 @@ class TrackingService:
                 item.status = "in_stock"
             elif action_type == "AUDIT":
                 pass
+                
+        elif item_type == "inventory":
+            # Core inventory stock adjustments based on scans
+            if action_type == "CHECK_OUT":
+                try:
+                    item.remove_stock(1, warehouse_id, f"Scan OUT - {notes or ''}")
+                except ValueError:
+                    # Graceful degradation if specific warehouse lacks stock but global has it
+                    item.remove_stock(1, None, f"Scan OUT (Global) - {notes or ''}")
+            elif action_type == "CHECK_IN":
+                item.add_stock(1, warehouse_id, f"Scan IN - {notes or ''}")
+
+        # Manage bin occupancy for items with physical locations
+        if item_type != "inventory":
+            if old_bin_id and old_bin_id != getattr(item, "bin_id", None):
+                old_bin = WarehouseBin.query.get(old_bin_id)
+                if old_bin:
+                    old_bin.status = "available"
+            if getattr(item, "bin_id", None) and getattr(item, "bin_id", None) != old_bin_id:
+                new_bin = WarehouseBin.query.get(item.bin_id)
+                if new_bin:
+                    new_bin.status = "occupied"
 
         # Real-time Broadcast
         event_bus.publish(

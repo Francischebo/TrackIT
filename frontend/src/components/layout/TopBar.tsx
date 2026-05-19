@@ -115,20 +115,28 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
           
           {/* Search Results Dropdown */}
           {isSearchFocused && searchQuery.length >= 2 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50 max-h-[400px] overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 max-h-[70vh] sm:max-h-[400px] overflow-y-auto animate-in slide-in-from-top-2 duration-200">
               {!searchLoading && !hasResults ? (
-                <div className="p-4 text-center text-sm text-slate-500 font-medium">No results found for "{searchQuery}"</div>
+                <div className="p-8 text-center">
+                  <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Search className="w-6 h-6 text-slate-300" />
+                  </div>
+                  <p className="text-sm text-slate-500 font-medium">No results found for "{searchQuery}"</p>
+                  <p className="text-xs text-slate-400 mt-1">Try searching for SKU, name, or department</p>
+                </div>
               ) : (
-                <div className="py-2">
+                <div className="py-2 divide-y divide-slate-50">
                   {searchResults?.assets.length ? (
-                    <div className="px-3 pb-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1 px-2">Assets</h4>
+                    <div className="px-3 py-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-2 flex items-center gap-2">
+                        <Package className="w-3 h-3" /> Assets
+                      </h4>
                       {searchResults.assets.map(asset => (
-                        <button key={`asset-${asset.id}`} onClick={() => handleResultClick('Asset', asset.id)} className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
-                          <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100"><Package className="w-4 h-4" /></div>
-                          <div>
-                            <div className="text-sm font-bold text-slate-700">{asset.name}</div>
-                            <div className="text-xs text-slate-500 font-medium">{asset.code}</div>
+                        <button key={`asset-${asset.id}`} onClick={() => handleResultClick('Asset', asset.id)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
+                          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors"><Package className="w-4 h-4" /></div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-slate-700 truncate">{asset.name}</div>
+                            <div className="text-[10px] text-slate-400 font-bold font-mono tracking-tight">{asset.code}</div>
                           </div>
                         </button>
                       ))}
@@ -136,14 +144,16 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
                   ) : null}
                   
                   {searchResults?.inventory.length ? (
-                    <div className="px-3 pb-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1 px-2">Inventory</h4>
+                    <div className="px-3 py-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-2 flex items-center gap-2">
+                        <Box className="w-3 h-3" /> Inventory
+                      </h4>
                       {searchResults.inventory.map(inv => (
-                        <button key={`inv-${inv.id}`} onClick={() => handleResultClick('Inventory', inv.id)} className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
-                          <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-100"><Box className="w-4 h-4" /></div>
-                          <div>
-                            <div className="text-sm font-bold text-slate-700">{inv.name}</div>
-                            <div className="text-xs text-slate-500 font-medium">{inv.code}</div>
+                        <button key={`inv-${inv.id}`} onClick={() => handleResultClick('Inventory', inv.id)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
+                          <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-100 transition-colors"><Box className="w-4 h-4" /></div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-slate-700 truncate">{inv.name}</div>
+                            <div className="text-[10px] text-slate-400 font-bold font-mono tracking-tight">{inv.code}</div>
                           </div>
                         </button>
                       ))}
@@ -151,14 +161,16 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
                   ) : null}
 
                   {searchResults?.users.length ? (
-                    <div className="px-3 pb-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1 px-2">Users</h4>
+                    <div className="px-3 py-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-2 flex items-center gap-2">
+                        <Users className="w-3 h-3" /> Users
+                      </h4>
                       {searchResults.users.map(u => (
-                        <button key={`user-${u.id}`} onClick={() => handleResultClick('User', u.id)} className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
-                          <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100"><Users className="w-4 h-4" /></div>
-                          <div>
-                            <div className="text-sm font-bold text-slate-700">{u.name}</div>
-                            <div className="text-xs text-slate-500 font-medium">{u.code}</div>
+                        <button key={`user-${u.id}`} onClick={() => handleResultClick('User', u.id)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
+                          <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><Users className="w-4 h-4" /></div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-slate-700 truncate">{u.name}</div>
+                            <div className="text-[10px] text-slate-400 font-medium truncate">{u.code}</div>
                           </div>
                         </button>
                       ))}
@@ -166,14 +178,16 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
                   ) : null}
 
                   {searchResults?.departments.length ? (
-                    <div className="px-3">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1 px-2">Departments</h4>
+                    <div className="px-3 py-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-2 flex items-center gap-2">
+                        <Building2 className="w-3 h-3" /> Departments
+                      </h4>
                       {searchResults.departments.map(d => (
-                        <button key={`dept-${d.id}`} onClick={() => handleResultClick('Department', d.id)} className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
-                          <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg group-hover:bg-amber-100"><Building2 className="w-4 h-4" /></div>
-                          <div>
-                            <div className="text-sm font-bold text-slate-700">{d.name}</div>
-                            <div className="text-xs text-slate-500 font-medium">{d.code}</div>
+                        <button key={`dept-${d.id}`} onClick={() => handleResultClick('Department', d.id)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
+                          <div className="p-2 bg-amber-50 text-amber-600 rounded-lg group-hover:bg-amber-100 transition-colors"><Building2 className="w-4 h-4" /></div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold text-slate-700 truncate">{d.name}</div>
+                            <div className="text-[10px] text-slate-400 font-bold font-mono tracking-tight">{d.code}</div>
                           </div>
                         </button>
                       ))}
@@ -229,7 +243,7 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-800 leading-tight mb-0.5">{alert.item_name}</p>
-                          <p className="text-xs text-slate-500 mb-1">{alert.alert_message}</p>
+                          <p className="text-xs text-slate-500 mb-1">{alert.message}</p>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                             {timeAgo(alert.created_at)}
                           </p>

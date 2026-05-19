@@ -1,15 +1,15 @@
 from unittest.mock import MagicMock
 import sys
 
-# Mock the 'app' module before importing EventBus
-sys.modules["app"] = MagicMock()
-db_mock = MagicMock()
-sys.modules["app"].db = db_mock
-
-from app.services.event_bus import EventBus
-
 
 def test_event_bus():
+    # Mock the 'app' module before importing EventBus
+    sys.modules["app"] = MagicMock()
+    db_mock = MagicMock()
+    sys.modules["app"].db = db_mock
+
+    from app.services.event_bus import EventBus
+
     bus = EventBus()
     q = bus.subscribe()
 

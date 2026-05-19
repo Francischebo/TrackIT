@@ -1,5 +1,7 @@
 from app import db
 from app.models import inventory
+from app.models import stock_levels
+from app.models import location_topology
 
 
 class InventoryRepository:
@@ -13,11 +15,14 @@ class InventoryRepository:
         )
 
         if search:
-            query = query.filter(
+            query = query.outerjoin(stock_levels.WarehouseStock).outerjoin(
+                location_topology.Warehouse, stock_levels.WarehouseStock.warehouse_id == location_topology.Warehouse.id
+            ).filter(
                 db.or_(
                     inventory.InventoryItem.name.ilike(f"%{search}%"),
                     inventory.InventoryItem.sku.ilike(f"%{search}%"),
                     inventory.InventoryItem.description.ilike(f"%{search}%"),
+                    location_topology.Warehouse.name.ilike(f"%{search}%"),
                 )
             )
 
@@ -26,7 +31,7 @@ class InventoryRepository:
                 inventory.InventoryItem.quantity
                 <= inventory.InventoryItem.reorder_level
             )
-
+        query = query.order_by(inventory.InventoryItem.created_at.desc())
         return query.paginate(page=page, per_page=per_page, error_out=False)
 
     def get_item(self, item_id, org_id):

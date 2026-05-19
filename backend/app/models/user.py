@@ -84,7 +84,7 @@ class User(UserMixin, db.Model):
         """
         role_permissions = {
             "admin": ["*:*"],  # Super access
-            "manager": [
+            "store_manager": [
                 "assets:*", "inventory:*", "transfers:*", "warehouses:*", 
                 "users:view", "reports:view"
             ],

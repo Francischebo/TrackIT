@@ -117,29 +117,6 @@ class TransferService:
                 request_obj, "review_comments", None
             )
 
-            old_dept_id = asset_obj.department_id
-            old_location = asset_obj.location
-
-            asset_obj.department_id = request_obj.to_department_id
-            asset_obj.location = (
-                request_obj.requested_location or asset_obj.location
-            )
-            asset_obj.updated_at = db.func.now()
-
-            AuditService.log_transfer(
-                asset_obj,
-                old_dept_id,
-                request_obj.to_department_id,
-                details={
-                    "transfer_request_id": request_obj.id,
-                    "approved_by": getattr(current_user, "username", None),
-                    "old_location": old_location,
-                    "new_location": asset_obj.location,
-                    "comments": request_obj.review_comments,
-                },
-                session=self.session,
-            )
-
             AuditService.log_action(
                 action="TRANSFER_REQUEST_APPROVED",
                 entity_type="transfer_request",
@@ -152,6 +129,82 @@ class TransferService:
                 session=self.session,
             )
 
+            self.session.commit()
+            return request_obj
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def dispatch_request(self, request_obj, current_user):
+        if request_obj.status != "approved":
+            raise ValidationError("Transfer request must be approved before dispatch")
+        
+        asset_obj = request_obj.asset
+        try:
+            request_obj.status = "in_transit"
+            old_location = asset_obj.location
+            destination = request_obj.to_department.name if request_obj.to_department else "Destination"
+            asset_obj.location = f"In Transit to {destination}"
+            asset_obj.updated_at = db.func.now()
+            
+            AuditService.log_action(
+                action="TRANSFER_REQUEST_DISPATCHED",
+                entity_type="transfer_request",
+                entity_id=request_obj.id,
+                details={
+                    "asset_id": asset_obj.id,
+                    "dispatched_by": getattr(current_user, "username", None),
+                    "old_location": old_location,
+                },
+                organisation_id=request_obj.organisation_id,
+                session=self.session,
+            )
+            self.session.commit()
+            return request_obj
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def receive_request(self, request_obj, current_user):
+        if request_obj.status != "in_transit":
+            raise ValidationError("Transfer request must be in transit before it can be received")
+        
+        asset_obj = request_obj.asset
+        try:
+            request_obj.status = "completed"
+            old_dept_id = asset_obj.department_id
+            
+            asset_obj.department_id = request_obj.to_department_id
+            if request_obj.requested_location:
+                asset_obj.location = request_obj.requested_location
+            else:
+                asset_obj.location = request_obj.to_department.name if request_obj.to_department else "Received"
+                
+            asset_obj.updated_at = db.func.now()
+            
+            AuditService.log_transfer(
+                asset_obj,
+                old_dept_id,
+                request_obj.to_department_id,
+                details={
+                    "transfer_request_id": request_obj.id,
+                    "received_by": getattr(current_user, "username", None),
+                    "new_location": asset_obj.location,
+                },
+                session=self.session,
+            )
+
+            AuditService.log_action(
+                action="TRANSFER_REQUEST_COMPLETED",
+                entity_type="transfer_request",
+                entity_id=request_obj.id,
+                details={
+                    "asset_id": asset_obj.id,
+                    "received_by": getattr(current_user, "username", None),
+                },
+                organisation_id=request_obj.organisation_id,
+                session=self.session,
+            )
             self.session.commit()
             return request_obj
         except Exception:

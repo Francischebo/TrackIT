@@ -50,6 +50,7 @@ def create_app(config_name=None):
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA synchronous=NORMAL")
                 cursor.execute("PRAGMA busy_timeout=15000") # Wait 15 seconds for a lock
+                cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
             except Exception:
                 pass
@@ -84,22 +85,41 @@ def create_app(config_name=None):
         def load_user(user_id):
             return user.User.query.get(int(user_id))
 
-        # Register blueprints
-        from app.blueprints.assets import assets_bp
-        from app.blueprints.audit import audit_bp
-        from app.blueprints.auth import auth_bp
-        from app.blueprints.departments import departments_bp
-        from app.blueprints.inventory import inventory_bp
-        from app.blueprints.transfers import transfers_bp
-        from app.blueprints.tracking import tracking_bp
-        from app.blueprints.restock import restock_bp
-        from app.blueprints.analytics import analytics_bp
-        from app.blueprints.reports import reports_bp
-        from app.blueprints.warehouses import warehouses_bp
-        from app.blueprints.settings import settings_bp
-        from app.blueprints.search import search_bp
+        # Register blueprints (use relative imports to avoid import-resolution issues)
+        import importlib
 
-        from app.blueprints.users import users_bp
+        def _import_bp(module_name: str):
+            # Ensure any stray 'app' module is a proper package; if not, reload it
+            import sys
+            if "app" in sys.modules and not getattr(sys.modules["app"], "__path__", None):
+                del sys.modules["app"]
+
+            pkg_candidates = [__package__ or "app", "app"]
+            last_exc = None
+            for pkg in pkg_candidates:
+                try:
+                    mod = importlib.import_module(f"{pkg}.blueprints.{module_name}")
+                    return getattr(mod, f"{module_name}_bp")
+                except Exception as e:
+                    last_exc = e
+            # If all attempts failed, raise the last exception for visibility
+            raise last_exc
+
+        assets_bp = _import_bp("assets")
+        audit_bp = _import_bp("audit")
+        auth_bp = _import_bp("auth")
+        departments_bp = _import_bp("departments")
+        inventory_bp = _import_bp("inventory")
+        transfers_bp = _import_bp("transfers")
+        tracking_bp = _import_bp("tracking")
+        restock_bp = _import_bp("restock")
+        analytics_bp = _import_bp("analytics")
+        reports_bp = _import_bp("reports")
+        warehouses_bp = _import_bp("warehouses")
+        settings_bp = _import_bp("settings")
+        search_bp = _import_bp("search")
+
+        users_bp = _import_bp("users")
 
         app.register_blueprint(users_bp, url_prefix="/api/users")
 
