@@ -36,6 +36,13 @@ class Config:
     # Security
     BCRYPT_LOG_ROUNDS = 12
 
+    # SQLAlchemy engine options - helpful for PostgreSQL in production
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        # Use unicode/utf-8 client encoding where applicable
+        "client_encoding": "utf8",
+    }
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

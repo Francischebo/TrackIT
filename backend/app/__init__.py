@@ -6,14 +6,12 @@ from flask_jwt_extended import JWTManager, get_jwt, verify_jwt_in_request
 from flask_talisman import Talisman
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text as sa_text
 import shutil
 import os as _os
 
 db = SQLAlchemy()
-login_manager = LoginManager()
 jwt = JWTManager()
 
 # Rate Limiting
@@ -55,23 +53,26 @@ def create_app(config_name=None):
             except Exception:
                 pass
 
-    login_manager.init_app(app)
     jwt.init_app(app)
     limiter.init_app(app)
 
+    # Configure CORS strictly
+    cors_origins = app.config.get("CORS_ORIGINS", [])
+    if isinstance(cors_origins, str):
+        cors_origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
+    
     CORS(
         app,
-        origins=app.config.get("CORS_ORIGINS", "*"),
-        allow_headers=app.config.get(
-            "CORS_HEADERS", "Content-Type,Authorization"
-        ).split(","),
+        origins=cors_origins,
+        allow_headers=["Content-Type", "Authorization"],
+        expose_headers=["Content-Type"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         supports_credentials=True,
+        max_age=3600,
     )
 
-    login_manager.login_view = "auth.login"
-
     with app.app_context():
-        from app.models import token, user
+        from app.models import token
 
         @jwt.token_in_blocklist_loader
         def check_if_token_revoked(jwt_header, jwt_payload: dict) -> bool:
@@ -80,10 +81,6 @@ def create_app(config_name=None):
                 token.TokenBlacklist.query.filter_by(jti=jti).first()
                 is not None
             )
-
-        @login_manager.user_loader
-        def load_user(user_id):
-            return user.User.query.get(int(user_id))
 
         # Register blueprints (use relative imports to avoid import-resolution issues)
         import importlib
@@ -211,50 +208,77 @@ def create_app(config_name=None):
 
         @app.after_request
         def normalize_api_responses(response):
-            """Ensure all JSON responses have a consistent format and return 200 OK."""
-            if response.is_json:
-                try:
-                    data = response.get_json()
-                    
-                    # If it's already an error (from our error handlers), it will have success: False
+            """Ensure JSON responses have a consistent wrapper but DO NOT alter HTTP status codes.
+
+            Keeping original status codes preserves correct semantics for clients, health checks,
+            and observability while still adding 'success' and 'status_code' metadata for
+            well-formed JSON responses.
+            """
+            try:
+                # Consider responses that claim to be JSON
+                if response.content_type and response.content_type.startswith("application/json"):
+                    original_status = response.status_code
+                    try:
+                        data = response.get_json()
+                    except Exception:
+                        data = None
+
+                    # If it's a dict, ensure the wrapper fields exist
                     if isinstance(data, dict):
-                        # Determine success based on status code
-                        is_success = 200 <= response.status_code < 300
-                        
-                        if 'success' not in data:
-                            data['success'] = is_success
-                        
-                        # Add the original status code
-                        if 'status_code' not in data:
-                            data['status_code'] = response.status_code
-                        
+                        is_success = 200 <= original_status < 300
+                        data.setdefault("success", is_success)
+                        data.setdefault("status_code", original_status)
                         response.set_data(jsonify(data).data)
-                except Exception:
-                    pass
-                
-                # Force HTTP 200 OK as requested
-                response.status_code = 200
-            
+                    elif data is not None:
+                        # For non-dict JSON (lists, primitives), wrap them to maintain structure
+                        is_success = 200 <= original_status < 300
+                        wrapped = {"success": is_success, "status_code": original_status, "data": data}
+                        response.set_data(jsonify(wrapped).data)
+                    # If data is None (invalid JSON or empty body), leave response as-is
+                    # NOTE: Do NOT change response.status_code here; preserve original HTTP semantics
+            except Exception:
+                # Fail-safe: on any error while normalizing, do not modify response
+                pass
+
             return response
 
-        # Security Headers — Enforce strict enterprise standards
+        # Security Headers — Strict enterprise standards (no unsafe-*)
+        # Build CSP based on environment
+        allowed_origins = cors_origins if cors_origins else ["https://localhost:3000"]
+        
+        # In production, no localhost; in dev, allow localhost
+        if config_name == "production":
+            allowed_origins = [o for o in allowed_origins if not o.startswith("http://localhost")]
+            if not allowed_origins:
+                # Fallback to empty list (origin cannot be wildcard in production CSP)
+                allowed_origins = []
+        
+        # Construct CSP: no unsafe-inline or unsafe-eval; nonce-based for scripts if needed
         csp = {
-            'default-src': ["'self'"],
-            'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net"],
-            'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            'font-src': ["'self'", "https://fonts.gstatic.com"],
-            'img-src': ["'self'", "data:", "https://*", "blob:"],
-            'connect-src': ["'self'", "http://localhost:5000", "ws://localhost:5000", "https://*"],
+            "default-src": ["'self'"],
+            "script-src": ["'self'"] + (["https://cdn.jsdelivr.net"] if config_name == "development" else []),
+            "style-src": ["'self'", "https://fonts.googleapis.com"],
+            "font-src": ["'self'", "https://fonts.gstatic.com"],
+            "img-src": ["'self'", "data:", "blob:"] + allowed_origins,
+            "connect-src": ["'self'"] + allowed_origins,
+            "frame-ancestors": ["'none'"],
+            "base-uri": ["'self'"],
+            "form-action": ["'self'"],
         }
         
         Talisman(
             app,
             content_security_policy=csp,
-            force_https=(config_name == 'production'), 
-            strict_transport_security=True, 
-            session_cookie_secure=(config_name == 'production'),
+            force_https=(config_name == "production"), 
+            strict_transport_security=True,
+            strict_transport_security_max_age=31536000,  # 1 year
+            strict_transport_security_include_subdomains=True,
+            session_cookie_secure=(config_name == "production"),
             session_cookie_http_only=True,
-            referrer_policy='strict-origin-when-cross-origin'
+            referrer_policy="strict-origin-when-cross-origin",
+            x_content_type_options=True,
+            x_frame_options="DENY",
+            x_xss_protection=True,
         )
 
         # Register error handlers
