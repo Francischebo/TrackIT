@@ -46,7 +46,9 @@ const Register = () => {
 
     setLoading(true);
     try {
-      await axios.post('/api/auth/register-org', formData);
+      const base = import.meta.env.VITE_API_URL || '';
+      const url = base ? `${base}/api/auth/register-org` : '/api/auth/register-org';
+      await axios.post(url, formData, { withCredentials: true });
       addToast('success', 'Registration Successful', 'Institution registered. You can now login.');
       navigate('/login');
     } catch (err: any) {
