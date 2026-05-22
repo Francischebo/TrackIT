@@ -221,11 +221,21 @@ def login():
     return response, 200
 
 
-@auth_bp.route("/refresh", methods=["POST"])
+@auth_bp.route("/refresh", methods=["POST", "OPTIONS"])
 @jwt_required(refresh=True)
 @limiter.limit("30 per minute")
 def refresh_access_token():
-    """Refresh access token using refresh token"""
+    """Refresh access token using refresh token (supports preflight OPTIONS)."""
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        resp = current_app.make_response("")
+        origin = request.headers.get("Origin", "")
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        return resp, 200
+
     user_id = get_jwt_identity()
     user_obj = user.User.query.get(user_id)
 
@@ -251,10 +261,20 @@ def refresh_access_token():
     return response, 200
 
 
-@auth_bp.route("/logout", methods=["POST"])
+@auth_bp.route("/logout", methods=["POST", "OPTIONS"])
 @jwt_required()
 def logout():
-    """Logout user and blacklist tokens"""
+    """Logout user and blacklist tokens (supports preflight OPTIONS)."""
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        resp = current_app.make_response("")
+        origin = request.headers.get("Origin", "")
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        return resp, 200
+
     user_id = get_jwt_identity()
     jwt_data = get_jwt()
 

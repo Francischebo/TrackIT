@@ -195,6 +195,33 @@ def create_app(config_name=None):
                 200,
             )
 
+        # Catch-all route for OPTIONS preflight on /api paths
+        @app.route("/api/<path:path>", methods=["OPTIONS"])
+        def handle_options(path):
+            """Handle CORS preflight for all /api paths."""
+            origin = request.headers.get("Origin", "")
+            allowed = False
+            
+            # Check literal configured origins
+            for o in cors_origins:
+                if isinstance(o, str) and (origin == o or origin.startswith(o)):
+                    allowed = True
+                    break
+            
+            # Allow vercel subdomains
+            if not allowed and re.match(r"^https://.*\.vercel\.app$", origin):
+                allowed = True
+            
+            # Always allow if it's a preflight from any origin (permissive for development)
+            resp = current_app.make_response("")
+            if origin:
+                resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN"
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+            resp.headers["Access-Control-Max-Age"] = "3600"
+            return resp, 200
+
         # Global handler for all OPTIONS requests (preflight)
         @app.before_request
         def handle_options_preflight():
