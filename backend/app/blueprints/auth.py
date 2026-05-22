@@ -35,10 +35,20 @@ auth_bp = Blueprint("auth", __name__)
 limiter = Limiter(key_func=get_remote_address)
 
 
-@auth_bp.route("/register-org", methods=["POST"])
+@auth_bp.route("/register-org", methods=["POST", "OPTIONS"])
 @limiter.limit("2 per day")  # Strict limit for org registration
 def register_org():
-    """Register a new institution and its admin"""
+    """Register a new institution and its admin (supports preflight OPTIONS)."""
+    # Handle CORS preflight explicitly to avoid 405 responses from proxies
+    if request.method == "OPTIONS":
+        resp = current_app.make_response("")
+        origin = request.headers.get("Origin", "")
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        return resp, 200
+
     data = request.get_json()
 
     # Validate input
