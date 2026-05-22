@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import re
 from flask_jwt_extended import JWTManager, get_jwt, verify_jwt_in_request
 from flask_talisman import Talisman
 from flask_limiter import Limiter
@@ -60,10 +61,18 @@ def create_app(config_name=None):
     cors_origins = app.config.get("CORS_ORIGINS", [])
     if isinstance(cors_origins, str):
         cors_origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
-    
+    # Allow Vercel-hosted frontends by adding a regex origin for any subdomain of vercel.app
+    cors_origins_compiled = list(cors_origins)
+    try:
+        vercel_regex = re.compile(r"^https://.*\.vercel\.app$")
+        cors_origins_compiled.append(vercel_regex)
+    except re.error:
+        # If regex compilation fails, fall back to literal vercel domain
+        cors_origins_compiled.append("https://track-it-gamma-blue.vercel.app")
+
     CORS(
         app,
-        origins=cors_origins,
+        origins=cors_origins_compiled,
         allow_headers=["Content-Type", "Authorization"],
         expose_headers=["Content-Type"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -245,6 +254,9 @@ def create_app(config_name=None):
         # Security Headers — Strict enterprise standards (no unsafe-*)
         # Build CSP based on environment
         allowed_origins = cors_origins if cors_origins else ["https://localhost:3000"]
+        # Add a CSP-friendly wildcard for Vercel-hosted frontends if not already present
+        if not any("vercel" in str(o) for o in allowed_origins):
+            allowed_origins.append("https://*.vercel.app")
         
         # In production, no localhost; in dev, allow localhost
         if config_name == "production":
