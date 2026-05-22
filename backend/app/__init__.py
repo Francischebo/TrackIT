@@ -249,6 +249,29 @@ def create_app(config_name=None):
                 # Fail-safe: on any error while normalizing, do not modify response
                 pass
 
+            # Ensure CORS headers present for browsers even on forced-200 error handlers
+            try:
+                origin = request.headers.get("Origin")
+                if origin and not response.headers.get("Access-Control-Allow-Origin"):
+                    allowed = False
+                    # Check literal configured origins
+                    for o in cors_origins:
+                        if isinstance(o, str) and origin.startswith(o):
+                            allowed = True
+                            break
+                    # Allow vercel subdomains
+                    if not allowed and re.match(r"^https://.*\\.vercel\\.app$", origin):
+                        allowed = True
+
+                    if allowed:
+                        response.headers["Access-Control-Allow-Origin"] = origin
+                        response.headers["Access-Control-Allow-Credentials"] = "true"
+                        response.headers["Access-Control-Expose-Headers"] = ",".join(["Content-Type"]) 
+                        response.headers["Access-Control-Allow-Methods"] = ",".join(["GET","POST","PUT","DELETE","OPTIONS"]) 
+                        response.headers["Access-Control-Allow-Headers"] = ",".join(["Content-Type","Authorization"]) 
+            except Exception:
+                pass
+
             return response
 
         # Security Headers — Strict enterprise standards (no unsafe-*)
