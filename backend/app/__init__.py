@@ -277,8 +277,7 @@ def create_app(config_name=None):
             session_cookie_http_only=True,
             referrer_policy="strict-origin-when-cross-origin",
             x_content_type_options=True,
-            x_frame_options="DENY",
-            x_xss_protection=True,
+            frame_options="DENY",
         )
 
         # Register error handlers

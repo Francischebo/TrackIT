@@ -18,6 +18,8 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['framer-motion', 'lucide-react', 'react', 'react-dom']
+    // Exclude framer-motion from dep optimization to avoid unresolved .mjs imports
+    exclude: ['framer-motion'],
+    include: ['lucide-react', 'react', 'react-dom']
   }
 })

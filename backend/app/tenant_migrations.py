@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy import text
 from flask import current_app
 from app import db
+import time
 
 
 def initialize_tenant_schema(organisation_id):
@@ -32,12 +33,46 @@ def initialize_tenant_schema(organisation_id):
         db.session.commit()
 
         # 2. Acquire an advisory lock to avoid race conditions across processes
-        # Use hashtext(schema_name) cast to bigint for a reproducible lock id
+        # Prefer non-blocking try-lock to avoid indefinite blocking on startup
+        lock_acquired = False
         try:
-            db.session.execute(text("SELECT pg_advisory_lock(hashtext(:s)::bigint)"), {"s": schema_name})
+            res = db.session.execute(text("SELECT pg_try_advisory_lock(hashtext(:s)::bigint) AS acquired"), {"s": schema_name})
+            row = res.fetchone()
+            if row and (row[0] is True or row[0] == 1):
+                lock_acquired = True
         except Exception:
-            # If hashtext is not available on some Postgres forks, try a fallback
-            db.session.execute(text("SELECT pg_advisory_lock( ( ('x' || md5(:s))::bit(64)::bigint ) )"), {"s": schema_name})
+            # Fallback if hashtext not available
+            try:
+                res = db.session.execute(text("SELECT pg_try_advisory_lock( ( ('x' || md5(:s))::bit(64)::bigint ) ) AS acquired"), {"s": schema_name})
+                row = res.fetchone()
+                if row and (row[0] is True or row[0] == 1):
+                    lock_acquired = True
+            except Exception:
+                pass
+
+        # Retry a few times with backoff before giving up to avoid long blocking
+        attempts = 0
+        while not lock_acquired and attempts < 10:
+            attempts += 1
+            time.sleep(0.5)
+            try:
+                res = db.session.execute(text("SELECT pg_try_advisory_lock(hashtext(:s)::bigint) AS acquired"), {"s": schema_name})
+                row = res.fetchone()
+                if row and (row[0] is True or row[0] == 1):
+                    lock_acquired = True
+                    break
+            except Exception:
+                try:
+                    res = db.session.execute(text("SELECT pg_try_advisory_lock( ( ('x' || md5(:s))::bit(64)::bigint ) ) AS acquired"), {"s": schema_name})
+                    row = res.fetchone()
+                    if row and (row[0] is True or row[0] == 1):
+                        lock_acquired = True
+                        break
+                except Exception:
+                    pass
+
+        if not lock_acquired:
+            current_app.logger.warning(f"Could not acquire advisory lock for {schema_name} after {attempts} attempts; proceeding without lock (risk of race condition)")
 
         # 3. Ensure migration tracking table exists in the tenant schema
         # Switch search_path to the tenant schema so creations happen there
@@ -61,7 +96,7 @@ def initialize_tenant_schema(organisation_id):
         row = db.session.execute(text("SELECT version FROM schema_migrations WHERE version = :v"), {"v": "0001_create_tables"}).fetchone()
         if not row:
             # Use SQLAlchemy metadata to create tables in the tenant schema (current search_path)
-            # This is idempotent and safe inside the advisory lock
+            # This is idempotent and safe inside the advisory lock (if acquired)
             db.create_all()
 
             db.session.execute(text(
@@ -69,20 +104,25 @@ def initialize_tenant_schema(organisation_id):
             ), {"v": "0001_create_tables"})
             db.session.commit()
 
-        # 5. Release advisory lock
-        try:
-            db.session.execute(text("SELECT pg_advisory_unlock(hashtext(:s)::bigint)"), {"s": schema_name})
-        except Exception:
-            db.session.execute(text("SELECT pg_advisory_unlock( ( ('x' || md5(:s))::bit(64)::bigint ) )"), {"s": schema_name})
-        db.session.commit()
+        # 5. Release advisory lock if we acquired it
+        if lock_acquired:
+            try:
+                db.session.execute(text("SELECT pg_advisory_unlock(hashtext(:s)::bigint)"), {"s": schema_name})
+            except Exception:
+                try:
+                    db.session.execute(text("SELECT pg_advisory_unlock( ( ('x' || md5(:s))::bit(64)::bigint ) )"), {"s": schema_name})
+                except Exception:
+                    pass
+            db.session.commit()
 
         current_app.logger.info(f"Initialized tenant schema {schema_name}")
         return True
     except Exception as e:
         current_app.logger.error(f"Failed to initialize tenant schema {schema_name}: {e}")
         try:
-            db.session.execute(text("SELECT pg_advisory_unlock(hashtext(:s)::bigint)"), {"s": schema_name})
-            db.session.commit()
+            if lock_acquired:
+                db.session.execute(text("SELECT pg_advisory_unlock(hashtext(:s)::bigint)"), {"s": schema_name})
+                db.session.commit()
         except Exception:
             # ignore
             pass

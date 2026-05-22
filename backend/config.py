@@ -37,11 +37,17 @@ class Config:
     BCRYPT_LOG_ROUNDS = 12
 
     # SQLAlchemy engine options - helpful for PostgreSQL in production
+    # Note: client_encoding is PostgreSQL-specific, only set for PostgreSQL
+    _db_url = os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_URL_PROD")
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
-        # Use unicode/utf-8 client encoding where applicable
-        "client_encoding": "utf8",
     }
+    # Only add PostgreSQL-specific options when using PostgreSQL
+    if _db_url and _db_url.startswith("postgresql://"):
+        SQLALCHEMY_ENGINE_OPTIONS["client_encoding"] = "utf8"
+        # Avoid long blocking on initial connect; set a connect timeout
+        SQLALCHEMY_ENGINE_OPTIONS["connect_args"] = {"connect_timeout": 10}
+
 
 
 class DevelopmentConfig(Config):

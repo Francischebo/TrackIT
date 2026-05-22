@@ -52,3 +52,6 @@ instance/
 # OS
 .DS_Store
 Thumbs.db
+.env
+.env.production
+.env.supabase
