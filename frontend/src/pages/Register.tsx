@@ -46,11 +46,16 @@ const Register = () => {
 
     setLoading(true);
     try {
-      await api.post('/auth/register-org', formData);
+      console.log('[Register] Submitting registration form', formData);
+      const response = await api.post('/auth/register-org', formData);
+      console.log('[Register] Success response:', response.data);
       addToast('success', 'Registration Successful', 'Institution registered. You can now login.');
       navigate('/login');
     } catch (err: any) {
-      addToast('error', 'Registration Failed', err.response?.data?.message || 'Check your details and try again.');
+      console.error('[Register] Error during registration:', err);
+      console.error('[Register] Error response:', err.response?.data);
+      console.error('[Register] Full error:', err);
+      addToast('error', 'Registration Failed', err.response?.data?.message || err.message || 'Check your details and try again.');
     } finally {
       setLoading(false);
     }

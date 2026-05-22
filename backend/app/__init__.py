@@ -195,14 +195,45 @@ def create_app(config_name=None):
                 200,
             )
 
+        # Global handler for all OPTIONS requests (preflight)
+        @app.before_request
+        def handle_options_preflight():
+            """Handle CORS preflight requests globally."""
+            if request.method == "OPTIONS":
+                origin = request.headers.get("Origin", "")
+                allowed = False
+                
+                # Check literal configured origins
+                for o in cors_origins:
+                    if isinstance(o, str) and (origin == o or origin.startswith(o)):
+                        allowed = True
+                        break
+                
+                # Allow vercel subdomains
+                if not allowed and re.match(r"^https://.*\.vercel\.app$", origin):
+                    allowed = True
+                
+                if allowed or not origin:  # Allow requests without origin or from allowed origins
+                    response = current_app.make_response("")
+                    if origin:
+                        response.headers["Access-Control-Allow-Origin"] = origin
+                    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+                    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                    response.headers["Access-Control-Max-Age"] = "3600"
+                    return response, 200
+                else:
+                    # Return 403 for disallowed origins
+                    return jsonify({"error": "Origin not allowed"}), 403
+
         # Multi-tenant Schema Isolation
         from app.tenant_utils import set_tenant_schema
 
         @app.before_request
         def handle_tenant_isolation():
             """Switch database schema based on the authenticated user's organization."""
-            # Skip for non-API or public routes
-            if request.path.startswith('/static') or request.path in ['/health', '/', '/api/auth/login', '/api/auth/register-org']:
+            # Skip for non-API, public routes, and OPTIONS preflight
+            if request.path.startswith('/static') or request.method == "OPTIONS" or request.path in ['/health', '/', '/api/auth/login', '/api/auth/register-org']:
                 return
 
             try:

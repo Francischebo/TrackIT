@@ -124,10 +124,20 @@ def register_org():
     )
 
 
-@auth_bp.route("/login", methods=["POST"])
+@auth_bp.route("/login", methods=["POST", "OPTIONS"])
 @limiter.limit("5 per minute")  # Tightened for security
 def login():
-    """Authenticate user and return JWT tokens"""
+    """Authenticate user and return JWT tokens (supports preflight OPTIONS)."""
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        resp = current_app.make_response("")
+        origin = request.headers.get("Origin", "")
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        return resp, 200
+
     data = request.get_json()
 
     # Validate input
@@ -277,10 +287,20 @@ def logout():
     return response, 200
 
 
-@auth_bp.route("/me", methods=["GET"])
+@auth_bp.route("/me", methods=["GET", "OPTIONS"])
 @jwt_required()
 def get_current_user():
-    """Get current user information"""
+    """Get current user information (supports preflight OPTIONS)."""
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        resp = current_app.make_response("")
+        origin = request.headers.get("Origin", "")
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        return resp, 200
+
     user_id = get_jwt_identity()
     user_obj = user.User.query.get(user_id)
 
