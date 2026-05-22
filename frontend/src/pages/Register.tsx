@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Building2, User, Mail, Lock, CheckCircle2, ChevronRight, Loader2, Globe } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/utils';
 
@@ -46,9 +46,7 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const base = import.meta.env.VITE_API_URL || '';
-      const url = base ? `${base}/api/auth/register-org` : '/api/auth/register-org';
-      await axios.post(url, formData, { withCredentials: true });
+      await api.post('/auth/register-org', formData);
       addToast('success', 'Registration Successful', 'Institution registered. You can now login.');
       navigate('/login');
     } catch (err: any) {

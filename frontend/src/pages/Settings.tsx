@@ -43,7 +43,7 @@ const Settings = () => {
     return org?.preferences?.[key] ?? defaultValue;
   };
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app') ? 'https://trackit-uxil.onrender.com' : 'http://localhost:5000');
   
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-20">

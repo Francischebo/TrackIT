@@ -1,7 +1,18 @@
 import axios from 'axios';
 
+// Choose a sensible default: prefer VITE_API_URL, otherwise
+// when running on Vercel use the known Render backend, else use local '/api'.
+const resolvedBase = (() => {
+  const envBase = import.meta.env.VITE_API_URL;
+  if (envBase) return envBase;
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    return 'https://trackit-uxil.onrender.com';
+  }
+  return '/api';
+})();
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: resolvedBase,
   withCredentials: true,
   xsrfCookieName: 'csrf_access_token',
   xsrfHeaderName: 'X-CSRF-TOKEN',
