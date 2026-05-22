@@ -23,7 +23,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const response = await fetch('/api/auth/me'); // Native fetch to avoid axios interceptor loops if any
+        const base = import.meta.env.VITE_API_URL || '';
+        const url = base ? `${base}/api/auth/me` : `/api/auth/me`;
+        const response = await fetch(url, { credentials: 'include' }); // Use absolute URL in prod
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
