@@ -1,5 +1,13 @@
 {
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://trackit-uxil.onrender.com/api/$1"
+    }
+  ]
+}
+{
+  "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
