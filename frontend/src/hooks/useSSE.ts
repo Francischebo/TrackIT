@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { baseWithApi } from '../services/api';
 
 export const useSSE = () => {
   const queryClient = useQueryClient();
@@ -11,7 +12,8 @@ export const useSSE = () => {
   useEffect(() => {
     if (!user) return; // Only connect if authenticated
 
-    const eventSource = new EventSource('/api/analytics/stream');
+    const sseUrl = baseWithApi.replace(/\/+$/, '') + '/analytics/stream';
+    const eventSource = new EventSource(sseUrl, { withCredentials: true } as any);
 
     eventSource.onmessage = (event) => {
       try {

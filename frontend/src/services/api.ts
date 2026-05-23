@@ -19,7 +19,7 @@ const resolvedBase = (() => {
 console.log('[API] Resolved base URL:', resolvedBase);
 // Ensure production base includes the '/api' prefix so client paths like
 // '/auth/register-org' map to '/api/auth/register-org' on the backend.
-const baseWithApi = (() => {
+export const baseWithApi = (() => {
   try {
     if (resolvedBase === '/api') return resolvedBase;
     if (resolvedBase.endsWith('/api')) return resolvedBase.replace(/\/+$/, '');
