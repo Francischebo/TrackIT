@@ -1,0 +1,28 @@
+name: Create Superadmin (one-off)
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        required: true
+        default: Frank
+      email:
+        required: true
+        default: frankadmin@trackit.com
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL_PROD: ${{ secrets.DATABASE_URL_PROD }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -r backend/requirements.txt
+      - name: Create superadmin
+        run: python backend/scripts/create_superadmin_prod.py --username ${{ github.event.inputs.username }} --email ${{ github.event.inputs.email }} --password ${{ secrets.SUPERADMIN_PASSWORD }}
