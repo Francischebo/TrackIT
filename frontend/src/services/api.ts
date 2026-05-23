@@ -17,9 +17,22 @@ const resolvedBase = (() => {
 })();
 
 console.log('[API] Resolved base URL:', resolvedBase);
+// Ensure production base includes the '/api' prefix so client paths like
+// '/auth/register-org' map to '/api/auth/register-org' on the backend.
+const baseWithApi = (() => {
+  try {
+    if (resolvedBase === '/api') return resolvedBase;
+    if (resolvedBase.endsWith('/api')) return resolvedBase.replace(/\/+$/, '');
+    return resolvedBase.replace(/\/+$/, '') + '/api';
+  } catch (e) {
+    return resolvedBase;
+  }
+})();
+
+console.log('[API] Using baseWithApi:', baseWithApi);
 
 const api = axios.create({
-  baseURL: resolvedBase,
+  baseURL: baseWithApi,
   withCredentials: true,
   xsrfCookieName: 'csrf_access_token',
   xsrfHeaderName: 'X-CSRF-TOKEN',

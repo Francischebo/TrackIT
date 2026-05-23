@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import api from '../services/api';
 
 interface User {
   id: number;
@@ -23,17 +24,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const base = import.meta.env.VITE_API_URL || '';
-        const url = base ? `${base}/api/auth/me` : `/api/auth/me`;
-        const response = await fetch(url, { credentials: 'include' }); // Use absolute URL in prod
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
+        const resp = await api.get('/auth/me');
+        if (resp && resp.data) {
+          setUser(resp.data);
         } else {
           setUser(null);
         }
       } catch (err) {
-        console.error("Session check failed", err);
+        console.error('Session check failed', err);
+        setUser(null);
       } finally {
         setLoading(false);
       }
