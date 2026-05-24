@@ -188,24 +188,15 @@ def create_app(config_name=None):
                 200 if health["status"] != "unhealthy" else 503
             )
 
-        _PUBLIC_PATHS = {"/", "/health", "/ping", "/cron/keepalive"}
+        _PUBLIC_PATHS = {
+            "/",
+            "/health",
+            "/ping",
+            "/cron/keepalive",
+            "/api/cron/keepalive",
+        }
 
-        @app.route("/ping", methods=["GET", "HEAD"])
-        def ping():
-            """Minimal liveness probe (no database)."""
-            return (
-                jsonify(
-                    {
-                        "ok": True,
-                        "service": "trackit",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }
-                ),
-                200,
-            )
-
-        @app.route("/cron/keepalive", methods=["GET", "HEAD"])
-        def cron_keepalive():
+        def _cron_keepalive_response():
             """Wake Render/free-tier hosts; call every ~10 minutes from cron-job.org."""
             secret = app.config.get("CRON_SECRET")
             if secret:
@@ -247,6 +238,28 @@ def create_app(config_name=None):
                 200,
             )
 
+        @app.route("/ping", methods=["GET", "HEAD"])
+        def ping():
+            """Minimal liveness probe (no database)."""
+            return (
+                jsonify(
+                    {
+                        "ok": True,
+                        "service": "trackit",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+                200,
+            )
+
+        @app.route("/cron/keepalive", methods=["GET", "HEAD"])
+        def cron_keepalive():
+            return _cron_keepalive_response()
+
+        @app.route("/api/cron/keepalive", methods=["GET", "HEAD"])
+        def api_cron_keepalive():
+            return _cron_keepalive_response()
+
         @app.route("/", methods=["GET"])
         def index():
             """Root endpoint providing basic API information."""
@@ -258,6 +271,7 @@ def create_app(config_name=None):
                         "health": "/health",
                         "ping": "/ping",
                         "cron_keepalive": "/cron/keepalive",
+                        "api_cron_keepalive": "/api/cron/keepalive",
                         "endpoints": [
                             "/api/users",
                             "/api/auth",
@@ -317,6 +331,7 @@ def create_app(config_name=None):
                 or request.method == "OPTIONS"
                 or request.path in _PUBLIC_PATHS
                 or request.path.startswith("/api/auth/")
+                or request.path.startswith("/api/cron/")
             ):
                 return
 
@@ -333,7 +348,7 @@ def create_app(config_name=None):
         @app.before_request
         def log_incoming_request():
             """Log key request info to help diagnose Method Not Allowed or proxy issues."""
-            if request.path in ("/ping", "/cron/keepalive"):
+            if request.path in ("/ping", "/cron/keepalive", "/api/cron/keepalive"):
                 return
             try:
                 origin = request.headers.get('Origin')

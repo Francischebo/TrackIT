@@ -31,6 +31,11 @@ class TestCronKeepalive(unittest.TestCase):
         resp = self.client.get("/cron/keepalive?token=test-cron-secret")
         self.assertEqual(resp.status_code, 200)
 
+    def test_api_prefixed_keepalive_route(self):
+        resp = self.client.get("/api/cron/keepalive")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["purpose"], "keepalive")
+
 
 if __name__ == "__main__":
     unittest.main()
