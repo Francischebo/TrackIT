@@ -218,7 +218,8 @@ def create_app(config_name=None):
                 resp = jsonify({"success": False, "message": "Origin not allowed"})
                 apply_cors_headers(resp, origin)
                 return resp, 403
-            resp = app.make_response("", 204)
+            resp = app.make_response("")
+            resp.status_code = 204
             apply_cors_headers(resp, origin or None)
             return resp
 
@@ -237,7 +238,8 @@ def create_app(config_name=None):
                     apply_cors_headers(resp, origin)
                     return resp, 403
 
-                resp = app.make_response("", 204)
+                resp = app.make_response("")
+                resp.status_code = 204
                 apply_cors_headers(resp, origin or None)
                 return resp
 

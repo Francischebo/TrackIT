@@ -30,6 +30,20 @@ class TestAuthSession(unittest.TestCase):
         db.drop_all()
         self.ctx.pop()
 
+    def test_register_org_options_preflight_returns_204(self):
+        resp = self.client.options(
+            "/api/auth/register-org",
+            headers={
+                "Origin": "https://track-74quy89k7-francischebos-projects.vercel.app",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        self.assertEqual(resp.status_code, 204)
+        self.assertEqual(
+            resp.headers.get("Access-Control-Allow-Origin"),
+            "https://track-74quy89k7-francischebos-projects.vercel.app",
+        )
+
     def test_me_without_session_returns_200(self):
         resp = self.client.get("/api/auth/me")
         self.assertEqual(resp.status_code, 200)
