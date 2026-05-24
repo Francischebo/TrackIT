@@ -47,7 +47,9 @@ const Register = () => {
     setLoading(true);
     try {
       console.log('[Register] Submitting registration form', formData);
-      const response = await api.post('/auth/register-org', formData);
+      const response = await api.post('/auth/register-org', formData, {
+        skipAuthRedirect: true,
+      } as const);
       console.log('[Register] Success response:', response.data);
       addToast('success', 'Registration Successful', 'Institution registered. You can now login.');
       navigate('/login');

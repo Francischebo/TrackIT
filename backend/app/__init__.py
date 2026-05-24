@@ -73,9 +73,15 @@ def create_app(config_name=None):
     CORS(
         app,
         origins=cors_origins_compiled,
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "X-CSRF-TOKEN",
+            "Accept",
+        ],
         expose_headers=["Content-Type"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         supports_credentials=True,
         max_age=3600,
     )
@@ -205,59 +211,35 @@ def create_app(config_name=None):
         @app.route("/api/<path:path>", methods=["OPTIONS"])
         def handle_options(path):
             """Handle CORS preflight for all /api paths."""
+            from app.cors_utils import apply_cors_headers, is_allowed_origin
+
             origin = request.headers.get("Origin", "")
-            allowed = False
-            
-            # Check literal configured origins
-            for o in cors_origins:
-                if isinstance(o, str) and (origin == o or origin.startswith(o)):
-                    allowed = True
-                    break
-            
-            # Allow vercel subdomains
-            if not allowed and re.match(r"^https://.*\.vercel\.app$", origin):
-                allowed = True
-            
-            # Always allow if it's a preflight from any origin (permissive for development)
-            resp = current_app.make_response("")
-            if origin:
-                resp.headers["Access-Control-Allow-Origin"] = origin
-            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN"
-            resp.headers["Access-Control-Allow-Credentials"] = "true"
-            resp.headers["Access-Control-Max-Age"] = "3600"
-            return resp, 200
+            if origin and not is_allowed_origin(origin):
+                resp = jsonify({"success": False, "message": "Origin not allowed"})
+                apply_cors_headers(resp, origin)
+                return resp, 403
+            resp = app.make_response("", 204)
+            apply_cors_headers(resp, origin or None)
+            return resp
 
         # Global handler for all OPTIONS requests (preflight)
         @app.before_request
         def handle_options_preflight():
             """Handle CORS preflight requests globally."""
             if request.method == "OPTIONS":
+                from app.cors_utils import is_allowed_origin, apply_cors_headers
+
                 origin = request.headers.get("Origin", "")
-                allowed = False
-                
-                # Check literal configured origins
-                for o in cors_origins:
-                    if isinstance(o, str) and (origin == o or origin.startswith(o)):
-                        allowed = True
-                        break
-                
-                # Allow vercel subdomains
-                if not allowed and re.match(r"^https://.*\.vercel\.app$", origin):
-                    allowed = True
-                
-                if allowed or not origin:  # Allow requests without origin or from allowed origins
-                    response = current_app.make_response("")
-                    if origin:
-                        response.headers["Access-Control-Allow-Origin"] = origin
-                    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-                    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
-                    response.headers["Access-Control-Max-Age"] = "3600"
-                    return response, 200
-                else:
-                    # Return 403 for disallowed origins
-                    return jsonify({"error": "Origin not allowed"}), 403
+                if origin and not is_allowed_origin(origin):
+                    resp = jsonify(
+                        {"success": False, "message": "Origin not allowed"}
+                    )
+                    apply_cors_headers(resp, origin)
+                    return resp, 403
+
+                resp = app.make_response("", 204)
+                apply_cors_headers(resp, origin or None)
+                return resp
 
         # Multi-tenant Schema Isolation
         from app.tenant_utils import set_tenant_schema
@@ -331,26 +313,12 @@ def create_app(config_name=None):
                 # Fail-safe: on any error while normalizing, do not modify response
                 pass
 
-            # Ensure CORS headers present for browsers even on forced-200 error handlers
             try:
+                from app.cors_utils import apply_cors_headers
+
                 origin = request.headers.get("Origin")
                 if origin and not response.headers.get("Access-Control-Allow-Origin"):
-                    allowed = False
-                    # Check literal configured origins
-                    for o in cors_origins:
-                        if isinstance(o, str) and origin.startswith(o):
-                            allowed = True
-                            break
-                    # Allow vercel subdomains
-                    if not allowed and re.match(r"^https://.*\\.vercel\\.app$", origin):
-                        allowed = True
-
-                    if allowed:
-                        response.headers["Access-Control-Allow-Origin"] = origin
-                        response.headers["Access-Control-Allow-Credentials"] = "true"
-                        response.headers["Access-Control-Expose-Headers"] = ",".join(["Content-Type"]) 
-                        response.headers["Access-Control-Allow-Methods"] = ",".join(["GET","POST","PUT","DELETE","OPTIONS"]) 
-                        response.headers["Access-Control-Allow-Headers"] = ",".join(["Content-Type","Authorization"]) 
+                    apply_cors_headers(response, origin)
             except Exception:
                 pass
 

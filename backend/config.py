@@ -101,10 +101,14 @@ class ProductionConfig(Config):
     JWT_COOKIE_HTTPONLY = True
     JWT_COOKIE_SAMESITE = "None"
     
+    _cors_env = os.environ.get("CORS_ORIGINS", "").strip()
     CORS_ORIGINS = (
-        os.environ.get("CORS_ORIGINS", "").split(",")
-        if os.environ.get("CORS_ORIGINS")
-        else []
+        [o.strip() for o in _cors_env.split(",") if o.strip()]
+        if _cors_env
+        else [
+            "https://track-it-eta-one.vercel.app",
+            "https://track-it-gamma-blue.vercel.app",
+        ]
     )
 
 
