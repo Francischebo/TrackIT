@@ -5,8 +5,11 @@ from dotenv import load_dotenv
 # Add project root to path
 sys.path.append(os.getcwd())
 
-# Load environment variables
+# Load environment variables (production uses .env.production)
+_flask_env = os.environ.get("FLASK_ENV", "development")
 load_dotenv()
+if _flask_env == "production":
+    load_dotenv(".env.production", override=True)
 
 from logging.config import fileConfig
 
@@ -23,7 +26,7 @@ from app import create_app, db
 config = context.config
 
 # Set sqlalchemy.url from app config (escaping '%' for configparser interpolation)
-flask_app = create_app()
+flask_app = create_app(_flask_env)
 db_url = flask_app.config["SQLALCHEMY_DATABASE_URI"]
 if db_url:
     db_url = db_url.replace("%", "%%")
