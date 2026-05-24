@@ -30,6 +30,23 @@ class TestAuthSession(unittest.TestCase):
         db.drop_all()
         self.ctx.pop()
 
+    def test_register_org_normalizes_hyphenated_org_code(self):
+        resp = self.client.post(
+            "/api/auth/register-org",
+            json={
+                "org_name": "Hyphen Org",
+                "org_code": "NOVA-LITE",
+                "admin_username": "nova_admin",
+                "admin_email": "nova@hyphen.test",
+                "admin_password": "Password1!",
+            },
+        )
+        self.assertEqual(resp.status_code, 201)
+        from app.models.organization import Organization
+
+        org = Organization.query.filter_by(code="NOVA_LITE").first()
+        self.assertIsNotNone(org)
+
     def test_register_org_accepts_extra_confirm_password_field(self):
         resp = self.client.post(
             "/api/auth/register-org",

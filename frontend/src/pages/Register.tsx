@@ -27,7 +27,7 @@ const Register = () => {
     const { name, value } = e.target;
     const next =
       name === 'org_code'
-        ? value.toUpperCase().replace(/\s+/g, '_')
+        ? value.toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_')
         : value;
     setFormData({ ...formData, [name]: next });
   };
@@ -47,7 +47,7 @@ const Register = () => {
 
     return {
       org_name: org_name.trim(),
-      org_code: org_code.trim().toUpperCase().replace(/\s+/g, '_'),
+      org_code: org_code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_'),
       ...(org_description.trim() ? { org_description: org_description.trim() } : {}),
       admin_username: admin_username.trim(),
       admin_email: admin_email.trim().toLowerCase(),
@@ -80,6 +80,19 @@ const Register = () => {
     if (step === 1) {
       if (!formData.org_name || !formData.org_code) {
         addToast('error', 'Missing Information', 'Please provide organization name and code.');
+        return;
+      }
+      const code = formData.org_code.trim();
+      if (code.length < 2) {
+        addToast('error', 'Invalid Code', 'Institution code must be at least 2 characters.');
+        return;
+      }
+      if (!/^[A-Z0-9_]+$/.test(code)) {
+        addToast(
+          'error',
+          'Invalid Code',
+          'Use only letters, numbers, and underscores (e.g. NOVA_LITE).',
+        );
         return;
       }
       setStep(2);

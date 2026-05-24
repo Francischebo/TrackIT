@@ -48,12 +48,21 @@ def register_org_options():
 @limiter.limit("10 per hour", methods=["POST"])
 def register_org():
     """Register a new institution and its admin."""
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise ValidationError(
+            "Invalid request body",
+            {"_schema": ["JSON body with registration fields is required"]},
+        )
 
-    # Validate input
     validated_data, errors = validate_input(OrganizationRegistrationSchema, data)
     if errors:
-        raise ValidationError("Validation failed", errors)
+        current_app.logger.info("register-org validation failed: %s", errors)
+        summary = "; ".join(
+            f"{field}: {msgs[0] if isinstance(msgs, list) else msgs}"
+            for field, msgs in errors.items()
+        )
+        raise ValidationError(summary or "Validation failed", errors)
 
     # 1. Check if organization already exists
     from app.models.organization import Organization

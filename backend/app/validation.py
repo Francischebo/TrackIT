@@ -80,7 +80,9 @@ class OrganizationRegistrationSchema(Schema):
     def normalize_org_code(self, data, **kwargs):
         if isinstance(data, dict) and data.get("org_code"):
             data = dict(data)
-            data["org_code"] = str(data["org_code"]).strip().upper().replace(" ", "_")
+            code = str(data["org_code"]).strip().upper()
+            code = re.sub(r"[^A-Z0-9]+", "_", code)
+            data["org_code"] = re.sub(r"_+", "_", code).strip("_")
         return data
 
 
