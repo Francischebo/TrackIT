@@ -74,6 +74,13 @@ class ProductionConfig(Config):
 
     DEBUG = False
     
+    # Disable CSRF checks for cookie-based JWT in cross-site environments.
+    # This prevents 401 on safe session checks like GET /api/auth/me when
+    # the frontend cannot reliably emit X-CSRF-TOKEN.
+    JWT_COOKIE_CSRF_PROTECT = False
+    
+
+    
     # Secure database URI with SSL requirement if PostgreSQL
     _db_url = os.environ.get("DATABASE_URL_PROD") or os.environ.get("DATABASE_URL")
     if _db_url and _db_url.startswith("postgresql://") and "sslmode=" not in _db_url:
