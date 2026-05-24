@@ -30,6 +30,26 @@ class TestAuthSession(unittest.TestCase):
         db.drop_all()
         self.ctx.pop()
 
+    def test_register_org_accepts_extra_confirm_password_field(self):
+        resp = self.client.post(
+            "/api/auth/register-org",
+            json={
+                "org_name": "Acme Corp",
+                "org_code": "acme_corp",
+                "admin_username": "acme_admin",
+                "admin_email": "admin@acme.test",
+                "admin_password": "Password1!",
+                "confirm_password": "Password1!",
+            },
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.get_json()
+        self.assertIn("org_id", data)
+        from app.models.organization import Organization
+
+        org = Organization.query.filter_by(code="ACME_CORP").first()
+        self.assertIsNotNone(org)
+
     def test_register_org_options_preflight_returns_204(self):
         resp = self.client.options(
             "/api/auth/register-org",

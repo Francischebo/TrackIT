@@ -1,6 +1,6 @@
 import re
 
-from marshmallow import Schema, ValidationError, fields, validate
+from marshmallow import EXCLUDE, Schema, ValidationError, fields, pre_load, validate
 
 
 class UserRegistrationSchema(Schema):
@@ -37,6 +37,9 @@ class UserRegistrationSchema(Schema):
     organisation_id = fields.Int(validate=validate.Range(min=1))
 
 class OrganizationRegistrationSchema(Schema):
+    class Meta:
+        unknown = EXCLUDE
+
     # Organization Info
     org_name = fields.Str(required=True, validate=validate.Length(min=2, max=255))
     org_code = fields.Str(
@@ -49,14 +52,36 @@ class OrganizationRegistrationSchema(Schema):
             ),
         ],
     )
-    org_description = fields.Str(validate=validate.Length(max=1000))
-    
+    org_description = fields.Str(
+        required=False, allow_none=True, validate=validate.Length(max=1000)
+    )
+
     # Admin Info
-    admin_username = fields.Str(required=True, validate=validate.Length(min=3, max=120))
+    admin_username = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(min=3, max=120),
+            validate.Regexp(
+                r"^[a-zA-Z0-9_]+$",
+                error="Username must contain only letters, numbers, and underscores",
+            ),
+        ],
+    )
     admin_email = fields.Email(required=True)
     admin_password = fields.Str(required=True, validate=validate.Length(min=8, max=255))
-    admin_first_name = fields.Str(validate=validate.Length(max=120))
-    admin_last_name = fields.Str(validate=validate.Length(max=120))
+    admin_first_name = fields.Str(
+        required=False, allow_none=True, validate=validate.Length(max=120)
+    )
+    admin_last_name = fields.Str(
+        required=False, allow_none=True, validate=validate.Length(max=120)
+    )
+
+    @pre_load
+    def normalize_org_code(self, data, **kwargs):
+        if isinstance(data, dict) and data.get("org_code"):
+            data = dict(data)
+            data["org_code"] = str(data["org_code"]).strip().upper().replace(" ", "_")
+        return data
 
 
 class UserLoginSchema(Schema):

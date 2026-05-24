@@ -24,7 +24,56 @@ const Register = () => {
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    const next =
+      name === 'org_code'
+        ? value.toUpperCase().replace(/\s+/g, '_')
+        : value;
+    setFormData({ ...formData, [name]: next });
+  };
+
+  const buildRegisterPayload = () => {
+    const {
+      confirm_password: _confirm,
+      org_name,
+      org_code,
+      org_description,
+      admin_username,
+      admin_email,
+      admin_password,
+      admin_first_name,
+      admin_last_name,
+    } = formData;
+
+    return {
+      org_name: org_name.trim(),
+      org_code: org_code.trim().toUpperCase().replace(/\s+/g, '_'),
+      ...(org_description.trim() ? { org_description: org_description.trim() } : {}),
+      admin_username: admin_username.trim(),
+      admin_email: admin_email.trim().toLowerCase(),
+      admin_password,
+      ...(admin_first_name.trim() ? { admin_first_name: admin_first_name.trim() } : {}),
+      ...(admin_last_name.trim() ? { admin_last_name: admin_last_name.trim() } : {}),
+    };
+  };
+
+  const formatRegisterError = (data: Record<string, unknown> | undefined): string => {
+    if (!data) {
+      return 'Check your details and try again.';
+    }
+    const fieldErrors = data.errors;
+    if (fieldErrors && typeof fieldErrors === 'object' && !Array.isArray(fieldErrors)) {
+      const parts = Object.entries(fieldErrors as Record<string, string[] | string>).map(
+        ([field, msgs]) => {
+          const text = Array.isArray(msgs) ? msgs.join(', ') : String(msgs);
+          return `${field.replace(/_/g, ' ')}: ${text}`;
+        },
+      );
+      if (parts.length) {
+        return parts.join(' · ');
+      }
+    }
+    return String(data.message ?? 'Check your details and try again.');
   };
 
   const handleNext = () => {
@@ -46,8 +95,9 @@ const Register = () => {
 
     setLoading(true);
     try {
-      console.log('[Register] Submitting registration form', formData);
-      const response = await api.post('/auth/register-org', formData, {
+      const payload = buildRegisterPayload();
+      console.log('[Register] Submitting registration form', payload);
+      const response = await api.post('/auth/register-org', payload, {
         skipAuthRedirect: true,
       } as const);
       console.log('[Register] Success response:', response.data);
@@ -57,7 +107,11 @@ const Register = () => {
       console.error('[Register] Error during registration:', err);
       console.error('[Register] Error response:', err.response?.data);
       console.error('[Register] Full error:', err);
-      addToast('error', 'Registration Failed', err.response?.data?.message || err.message || 'Check your details and try again.');
+      addToast(
+        'error',
+        'Registration Failed',
+        formatRegisterError(err.response?.data),
+      );
     } finally {
       setLoading(false);
     }
