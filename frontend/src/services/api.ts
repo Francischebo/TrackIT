@@ -6,6 +6,7 @@ import {
   hasStoredSession,
   setAuthTokens,
 } from '../lib/authStorage';
+import { unwrapApiPayload } from '../lib/apiResponse';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -110,8 +111,13 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => {
+    if (response.data !== undefined) {
+      response.data = unwrapApiPayload(response.data);
+    }
     if (response.config.url?.includes('/auth/login')) {
-      persistTokensFromResponse(response.data);
+      persistTokensFromResponse(
+        response.data as Record<string, unknown> | undefined,
+      );
     }
     return response;
   },

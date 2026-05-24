@@ -6,6 +6,7 @@ import { MovementTrendsChart } from '../components/ui/MovementTrendsChart';
 import { useDashboardSummary, useAlerts, useDashboardMovements } from '../hooks/useDashboard';
 import { useWarehouses } from '../hooks/useWarehouses';
 import { cn } from '../lib/utils';
+import { asArray } from '../lib/apiResponse';
 import { motion } from 'framer-motion';
 import { ErrorFallback } from '../components/ui/ErrorFallback';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -17,6 +18,8 @@ const Dashboard = () => {
   const { data: alerts, isLoading: alertsLoading } = useAlerts();
   const { data: movements, isLoading: movementsLoading } = useDashboardMovements(trendDays, selectedWarehouseId);
   const { data: warehouses } = useWarehouses();
+  const warehouseList = asArray<{ warehouse_id: number; warehouse_name: string }>(warehouses);
+  const alertList = asArray(alerts);
   const navigate = useNavigate();
 
   return (
@@ -50,7 +53,7 @@ const Dashboard = () => {
               style={{ fontFamily: 'Outfit' }}
             >
               <option value="">All Warehouses</option>
-              {warehouses?.map((wh) => (
+              {warehouseList.map((wh) => (
                 <option key={wh.warehouse_id} value={wh.warehouse_id}>
                   {wh.warehouse_name}
                 </option>
@@ -93,7 +96,7 @@ const Dashboard = () => {
         />
         <StatsCard 
           title="Stock Alerts" 
-          value={alerts?.length || 0} 
+          value={alertList.length} 
           icon={AlertTriangle} 
           color="amber"
           description="Items that need attention"
@@ -150,7 +153,7 @@ const Dashboard = () => {
             </h3>
           </div>
           <div className="p-6 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
-            {Array.isArray(alerts) && alerts.slice(0, 8).map((alert: any) => (
+            {alertList.slice(0, 8).map((alert: any) => (
               <div key={alert.id} className="flex gap-4 group p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 cursor-pointer relative overflow-hidden">
                 <div className={cn(
                   "w-1.5 rounded-full shadow-inner",
@@ -166,7 +169,7 @@ const Dashboard = () => {
                 </div>
               </div>
             ))}
-            {!alerts?.length && !alertsLoading && (
+            {!alertList.length && !alertsLoading && (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-50">
                 <Activity className="w-12 h-12 mb-3" />
                 <p className="font-medium italic text-sm tracking-wide">No recent alerts.</p>

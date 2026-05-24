@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useGlobalSearch } from '../../hooks/useSearch';
 import { useAlerts } from '../../hooks/useDashboard';
 import { useNavigate } from 'react-router-dom';
+import { asArray } from '../../lib/apiResponse';
 
 function timeAgo(dateString: string): string {
   const date = new Date(dateString);
@@ -34,6 +35,12 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
   
   const { data: searchResults, isLoading: searchLoading } = useGlobalSearch(searchQuery);
   const { data: alerts } = useAlerts();
+  const alertList = asArray<{
+    id: number;
+    item_name: string;
+    message: string;
+    created_at: string;
+  }>(alerts);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -224,7 +231,7 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
             className="relative cursor-pointer hover:bg-slate-100 p-2 rounded-full transition-colors group"
           >
             <Bell className="w-5 h-5 text-slate-500 group-hover:text-slate-800 transition-colors" />
-            {alerts && alerts.length > 0 && (
+            {alertList.length > 0 && (
               <span className="absolute top-1.5 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white animate-pulse-slow"></span>
             )}
           </div>
@@ -234,18 +241,18 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
               <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                 <h3 className="font-bold text-slate-800 text-sm">Notifications</h3>
                 <span className="text-xs font-bold bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded-md">
-                  {alerts?.length || 0} New
+                  {alertList.length} New
                 </span>
               </div>
               <div className="max-h-80 overflow-y-auto">
-                {!alerts || alerts.length === 0 ? (
+                {alertList.length === 0 ? (
                   <div className="p-8 text-center text-slate-500">
                     <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
                     <p className="text-sm font-medium">You're all caught up!</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
-                    {alerts.map(alert => (
+                    {alertList.map(alert => (
                       <div key={alert.id} className="p-3 hover:bg-slate-50 transition-colors flex gap-3 items-start">
                         <div className="p-1.5 rounded-lg bg-rose-50 shrink-0">
                           <Package className="w-4 h-4 text-rose-600" />
