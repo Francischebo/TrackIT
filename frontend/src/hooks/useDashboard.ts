@@ -26,11 +26,15 @@ export const useDashboardSummary = (warehouseId?: number) => {
   });
 };
 
-export const useDashboardMovements = (days: number = 7) => {
+export const useDashboardMovements = (days: number = 7, warehouseId?: number) => {
   return useQuery({
-    queryKey: ['dashboard-movements', days],
+    queryKey: ['dashboard-movements', days, warehouseId],
     queryFn: async () => {
-      const response = await api.get(`/analytics/dashboard/movements?days=${days}`);
+      const params = new URLSearchParams({ days: String(days) });
+      if (warehouseId) {
+        params.set('warehouse_id', String(warehouseId));
+      }
+      const response = await api.get(`/analytics/dashboard/movements?${params.toString()}`);
       return response.data as Record<string, { IN: number; OUT: number }>;
     },
   });

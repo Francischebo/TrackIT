@@ -6,7 +6,13 @@ from app import db
 from app.auth_utils import (
     get_current_organisation_id,
     jwt_required_with_user,
+    require_permission,
     require_role,
+)
+from app.rbac import (
+    assert_not_read_only,
+    assert_can_transition_status,
+    get_available_transitions,
 )
 from app.errors import AuthorizationError, NotFoundError, ValidationError
 from app.models import asset
@@ -75,6 +81,8 @@ def get_assets():
                         "status": a.status,
                         "condition": a.condition,
                         "location": a.location,
+                        "warehouse_id": a.warehouse_id,
+                        "bin_id": a.bin_id,
                         "purchase_date": (
                             a.purchase_date.isoformat()
                             if a.purchase_date
@@ -133,6 +141,8 @@ def get_asset(asset_id):
                 "status": asset_obj.status,
                 "condition": asset_obj.condition,
                 "location": asset_obj.location,
+                "warehouse_id": asset_obj.warehouse_id,
+                "bin_id": asset_obj.bin_id,
                 "purchase_date": (
                     asset_obj.purchase_date.isoformat()
                     if asset_obj.purchase_date
@@ -152,7 +162,7 @@ def get_asset(asset_id):
 
 @assets_bp.route("", methods=["POST"])
 @jwt_required_with_user
-@require_role("admin", "staff", "store_manager")
+@require_permission("assets:create")
 @limiter.limit("20 per minute")
 def create_asset():
     """Create new asset"""
@@ -193,7 +203,7 @@ def create_asset_options():
 
 @assets_bp.route("/<int:asset_id>", methods=["PUT"])
 @jwt_required_with_user
-@require_role("admin", "staff")
+@require_permission("assets:edit")
 @limiter.limit("30 per minute")
 def update_asset(asset_id):
     """Update asset"""
@@ -217,7 +227,9 @@ def update_asset(asset_id):
             validated_data["location"]
         )
 
-    asset_service.update_asset(asset_id, org_id, validated_data)
+    asset_service.update_asset(
+        asset_id, org_id, validated_data, user_role=g.user.role
+    )
     return jsonify({"message": "Asset updated successfully"}), 200
 
 
@@ -227,29 +239,33 @@ def update_asset_options(asset_id):
     return ('', 204)
 
 
+@assets_bp.route("/<int:asset_id>/transitions", methods=["GET"])
+@jwt_required_with_user
+def get_asset_transitions(asset_id):
+    """List allowed status transitions for the current user's role."""
+    org_id = get_current_organisation_id()
+    asset_obj = asset_service.get_asset(asset_id, org_id)
+    transitions = get_available_transitions(g.user.role, asset_obj.status)
+    return jsonify({"current_status": asset_obj.status, "transitions": transitions}), 200
+
+
 @assets_bp.route("/<int:asset_id>/status", methods=["PUT"])
 @jwt_required_with_user
-@require_role("admin", "staff", "dept_head")
 @limiter.limit("30 per minute")
 def update_asset_status(asset_id):
-    """Update asset status"""
+    """Update asset status with RBAC-enforced transitions."""
     data = request.get_json()
     org_id = get_current_organisation_id()
 
-    # Validate input
+    assert_not_read_only(g.user.role, "change asset status")
+
     validated_data, errors = validate_input(AssetStatusUpdateSchema, data)
     if errors:
         raise ValidationError("Validation failed", errors)
 
-    # Permission checks remain in controller
     new_status = validated_data["status"]
-    if new_status == "approved" and g.user.role not in ["admin", "dept_head"]:
-        raise AuthorizationError(
-            "Only admins and department heads can approve assets"
-        )
-
-    if new_status == "disposed" and g.user.role not in ["admin"]:
-        raise AuthorizationError("Only admins can dispose assets")
+    asset_obj = asset_service.get_asset(asset_id, org_id)
+    assert_can_transition_status(g.user.role, asset_obj.status, new_status)
 
     asset_obj = asset_service.update_asset_status(
         asset_id,

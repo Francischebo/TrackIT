@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -238,10 +238,15 @@ def get_audit_summary():
 @require_role("admin", "auditor")
 @limiter.limit("5 per minute")
 def export_audit_logs():
-    """Export audit logs (basic CSV format)"""
-    org_id = get_current_organisation_id()
+    """Export audit logs as a professionally formatted CSV download."""
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.utils.formatted_export import build_csv_document
 
-    # For security, limit export to last 90 days
+    org_id = get_current_organisation_id()
+    org = Organization.query.get(org_id)
+    org_name = org.name if org else f"Organization #{org_id}"
+
     since_date = datetime.utcnow() - timedelta(days=90)
 
     logs = (
@@ -254,31 +259,58 @@ def export_audit_logs():
         .all()
     )
 
-    # Create CSV content
-    csv_content = "ID,Action,Entity Type,Entity ID,User ID,IP Address,Created At,Details\n"
-
+    headers = [
+        "Log ID",
+        "Timestamp (UTC)",
+        "Action",
+        "Entity Type",
+        "Entity ID",
+        "Username",
+        "User Role",
+        "IP Address",
+        "Details Summary",
+    ]
+    rows = []
     for log in logs:
-        details = (
-            str(log.details).replace(",", ";").replace("\n", " ")
-            if log.details
-            else ""
-        )
-        csv_content += f"{log.id},{log.action},{log.entity_type},{log.entity_id},{log.user_id},{log.ip_address},{log.created_at.isoformat()},{details}\n"
+        user = User.query.get(log.user_id) if log.user_id else None
+        role = ""
+        summary = ""
+        if isinstance(log.details, dict):
+            role = log.details.get("role", user.role if user else "")
+            summary = str(
+                log.details.get("new_state")
+                or log.details.get("old_values")
+                or log.details
+            )[:500]
+        elif log.details:
+            summary = str(log.details)[:500]
 
-    # In a real implementation, you'd return a file download
-    # For now, return as JSON with CSV content
-    return (
-        jsonify(
-            {
-                "message": "Audit logs exported",
-                "format": "CSV",
-                "record_count": len(logs),
-                "csv_content": (
-                    csv_content[:5000] + "..."
-                    if len(csv_content) > 5000
-                    else csv_content
-                ),
-            }
-        ),
-        200,
+        rows.append(
+            [
+                log.id,
+                log.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                log.action,
+                log.entity_type,
+                log.entity_id,
+                user.username if user else f"User #{log.user_id}",
+                role,
+                log.ip_address or "",
+                summary.replace("\n", " ").replace("\r", " "),
+            ]
+        )
+
+    csv_content = build_csv_document(
+        "Security Audit Log Export",
+        org_name,
+        headers,
+        rows,
+        subtitle="Rolling 90-day compliance window",
+        extra_meta=[f"Total entries: {len(rows)}"],
+    )
+
+    filename = f"audit_logs_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    return Response(
+        csv_content,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

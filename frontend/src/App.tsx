@@ -60,7 +60,7 @@ function AppContent() {
                     <Route 
                       path="/analytics" 
                       element={
-                        <ProtectedRoute allowedRoles={['admin', 'store_manager', 'auditor']}>
+                        <ProtectedRoute allowedRoles={['admin', 'store_manager', 'auditor', 'dept_head', 'staff', 'viewer']}>
                           <Analytics />
                         </ProtectedRoute>
                       } 
@@ -78,7 +78,7 @@ function AppContent() {
                     <Route 
                       path="/reports" 
                       element={
-                        <ProtectedRoute allowedRoles={['admin', 'auditor']}>
+                        <ProtectedRoute allowedRoles={['admin', 'auditor', 'store_manager']}>
                           <Reports />
                         </ProtectedRoute>
                       } 

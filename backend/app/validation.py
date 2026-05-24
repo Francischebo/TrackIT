@@ -139,6 +139,7 @@ class AssetStatusUpdateSchema(Schema):
             ]
         ),
     )
+    comments = fields.Str(validate=validate.Length(max=1000), allow_none=True)
 
 
 class TransferRequestSchema(Schema):

@@ -22,6 +22,7 @@ from app.validation import (
     TransferReviewSchema,
     validate_input,
 )
+from app.services.event_bus import event_bus
 
 transfers_bp = Blueprint("transfers", __name__)
 
@@ -258,12 +259,16 @@ def get_transfer_stats():
     pending = transfer.TransferRequest.query.filter_by(organisation_id=org_id, status="pending").count()
     approved = transfer.TransferRequest.query.filter_by(organisation_id=org_id, status="approved").count()
     rejected = transfer.TransferRequest.query.filter_by(organisation_id=org_id, status="rejected").count()
+    in_transit = transfer.TransferRequest.query.filter_by(organisation_id=org_id, status="in_transit").count()
+    completed = transfer.TransferRequest.query.filter_by(organisation_id=org_id, status="completed").count()
     
     return jsonify({
         "pending": pending,
         "approved": approved,
         "rejected": rejected,
-        "total": pending + approved + rejected
+        "in_transit": in_transit,
+        "completed": completed,
+        "total": pending + approved + rejected + in_transit + completed
     }), 200
 
 
@@ -295,10 +300,20 @@ def get_transfer_requests():
         query = query.filter_by(status=status)
         
     if search:
-        query = query.outerjoin(asset.Asset).outerjoin(organization.User, transfer.TransferRequest.requested_by == organization.User.id).filter(
+        from app.models.inventory import InventoryItem
+
+        query = query.outerjoin(asset.Asset).outerjoin(
+            InventoryItem,
+            transfer.TransferRequest.inventory_item_id == InventoryItem.id,
+        ).outerjoin(
+            organization.User,
+            transfer.TransferRequest.requested_by == organization.User.id,
+        ).filter(
             db.or_(
                 asset.Asset.name.ilike(f"%{search}%"),
                 asset.Asset.asset_code.ilike(f"%{search}%"),
+                InventoryItem.name.ilike(f"%{search}%"),
+                InventoryItem.sku.ilike(f"%{search}%"),
                 organization.User.username.ilike(f"%{search}%"),
                 transfer.TransferRequest.comment.ilike(f"%{search}%")
             )
@@ -545,6 +560,17 @@ def approve_transfer_request(request_id):
 
     db.session.commit()
 
+    event_bus.publish(
+        "ASSET_TRANSFER",
+        {
+            "transfer_request_id": transfer_req.id,
+            "status": "approved",
+            "item_type": transfer_req.item_type,
+            "item_id": item_id,
+        },
+        organisation_id=org_id,
+    )
+
     return (
         jsonify(
             {
@@ -639,6 +665,17 @@ def dispatch_transfer_request(request_id):
 
     db.session.commit()
 
+    event_bus.publish(
+        "ASSET_TRANSFER",
+        {
+            "transfer_request_id": transfer_req.id,
+            "status": "in_transit",
+            "item_type": transfer_req.item_type,
+            "item_id": item_id,
+        },
+        organisation_id=org_id,
+    )
+
     return (
         jsonify(
             {
@@ -731,8 +768,11 @@ def receive_transfer_request(request_id):
         )
         item_id = asset_obj.id
     else:
-        # Inventory Transfer receive
-        from app.models.inventory import InventoryItem, WarehouseStock, StockMovement
+        # Inventory transfer receive — use inventory service for consistent stock logging
+        from app.models.inventory import InventoryItem
+        from app.repositories.inventory_repository import InventoryRepository
+        from app.services.inventory_service import InventoryService
+
         inv_item = (
             InventoryItem.query.with_for_update()
             .filter_by(id=transfer_req.inventory_item_id, organisation_id=org_id)
@@ -740,37 +780,19 @@ def receive_transfer_request(request_id):
         )
         if not inv_item:
             raise NotFoundError("Inventory item not found")
-            
-        # Since we skipped deducting at dispatch to avoid complex rollbacks, we just transfer stock to the new warehouse here.
-        # Wait, if we want to transfer, we subtract from global if from_warehouse is none, and add to new_warehouse.
-        # But wait, global stock is the sum of warehouse stocks plus whatever is not in a warehouse.
-        # Let's just adjust the destination warehouse stock.
-        if transfer_req.to_warehouse_id:
-            stock = WarehouseStock.query.filter_by(
-                item_id=inv_item.id, warehouse_id=transfer_req.to_warehouse_id
-            ).first()
-            if not stock:
-                stock = WarehouseStock(
-                    item_id=inv_item.id,
-                    warehouse_id=transfer_req.to_warehouse_id,
-                    quantity_on_hand=0
-                )
-                db.session.add(stock)
-            
-            stock.quantity_on_hand += transfer_req.quantity
-            
-            # Log stock movement IN for the destination
-            movement_in = StockMovement(
-                item_id=inv_item.id,
-                movement_type="IN",
-                quantity=transfer_req.quantity,
-                reference=f"Transfer Request {transfer_req.id}",
-                notes=f"Received from transfer request",
-                warehouse_id=transfer_req.to_warehouse_id,
-                created_by=g.user.id
-            )
-            db.session.add(movement_in)
-            
+
+        inventory_service = InventoryService(
+            repository=InventoryRepository(), session=db.session
+        )
+        inventory_service.update_stock(
+            inv_item.id,
+            org_id,
+            "IN",
+            transfer_req.quantity,
+            warehouse_id=transfer_req.to_warehouse_id,
+            reference=f"Transfer Request {transfer_req.id}",
+            notes="Received from transfer request",
+        )
         item_id = inv_item.id
 
     AuditService.log_action(
@@ -783,11 +805,23 @@ def receive_transfer_request(request_id):
 
     db.session.commit()
 
+    event_bus.publish(
+        "ASSET_TRANSFER",
+        {
+            "transfer_request_id": transfer_req.id,
+            "status": "completed",
+            "item_type": transfer_req.item_type,
+            "item_id": item_id,
+        },
+        organisation_id=org_id,
+    )
+
     return (
         jsonify(
             {
                 "message": "Transfer request received successfully",
-                "asset_id": asset_obj.id,
+                "item_id": item_id,
+                "item_type": transfer_req.item_type,
                 "transfer_request_id": transfer_req.id,
             }
         ),
@@ -852,6 +886,17 @@ def reject_transfer_request(request_id):
     )
 
     db.session.commit()
+
+    event_bus.publish(
+        "ASSET_TRANSFER",
+        {
+            "transfer_request_id": transfer_req.id,
+            "status": "rejected",
+            "item_type": transfer_req.item_type,
+            "item_id": transfer_req.asset_id or transfer_req.inventory_item_id,
+        },
+        organisation_id=org_id,
+    )
 
     return (
         jsonify(

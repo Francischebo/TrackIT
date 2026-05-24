@@ -12,7 +12,6 @@ restock_bp = Blueprint("restock", __name__)
 
 @restock_bp.route("/alerts", methods=["GET"])
 @jwt_required_with_user
-@require_role("admin", "store_manager")
 def get_alerts():
     """Get active restocking alerts for the organization."""
     org_id = get_current_organisation_id()
@@ -23,13 +22,19 @@ def get_alerts():
             [
                 {
                     "id": a.id,
+                    "item_id": a.item_id,
+                    "organisation_id": a.organisation_id,
                     "item_name": a.item.name,
+                    "warehouse_id": a.warehouse_id,
                     "warehouse_name": (
                         a.warehouse.name if a.warehouse_id else "Global"
                     ),
                     "severity": a.severity,
                     "current_qty": a.current_quantity,
+                    "current_quantity": a.current_quantity,
                     "threshold": a.threshold_level,
+                    "threshold_level": a.threshold_level,
+                    "status": a.status,
                     "message": a.message,
                     "created_at": a.created_at.isoformat(),
                 }

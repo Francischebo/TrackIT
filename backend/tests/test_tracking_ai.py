@@ -4,6 +4,7 @@ from app import create_app, db
 from app.models import Asset, Warehouse, ScanEvent
 from app.services.tracking_service import TrackingService
 from app.services.anomaly_service import AnomalyService
+from app.services.qr_service import QRService
 
 
 class TestTrackingAI(unittest.TestCase):
@@ -55,9 +56,11 @@ class TestTrackingAI(unittest.TestCase):
             purchase_value=1000.0,
             useful_life=5,
             current_value=1000.0,
-            qr_code_data="QR-ASSET-001",
+            status="approved",
         )
         db.session.add(self.asset)
+        db.session.commit()
+        self.qr_scan_data = QRService.ensure_asset_qr(self.asset)
         db.session.commit()
 
     def tearDown(self):
@@ -70,11 +73,13 @@ class TestTrackingAI(unittest.TestCase):
         TrackingService.record_scan(
             org_id=self.org_id,
             user_id=self.user_id,
-            qr_data="QR-ASSET-001",
+            user_role="staff",
+            qr_data=self.qr_scan_data,
             action_type="CHECK_IN",
             warehouse_id=self.wh1.id,
         )
 
+        db.session.refresh(self.asset)
         self.assertEqual(self.asset.location, "WH: Warehouse A")
 
         # Verify scan event created
@@ -88,7 +93,8 @@ class TestTrackingAI(unittest.TestCase):
         _, event1 = TrackingService.record_scan(
             org_id=self.org_id,
             user_id=self.user_id,
-            qr_data="QR-ASSET-001",
+            user_role="staff",
+            qr_data=self.qr_scan_data,
             action_type="CHECK_IN",
             warehouse_id=self.wh1.id,
         )
@@ -101,7 +107,8 @@ class TestTrackingAI(unittest.TestCase):
         _, event2 = TrackingService.record_scan(
             org_id=self.org_id,
             user_id=self.user_id,
-            qr_data="QR-ASSET-001",
+            user_role="staff",
+            qr_data=self.qr_scan_data,
             action_type="TRANSFER",
             warehouse_id=self.wh2.id,
         )

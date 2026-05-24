@@ -29,7 +29,15 @@ class ScanEvent(db.Model):
     # Action
     action_type = db.Column(
         db.String(50), nullable=False
-    )  # CHECK_IN, CHECK_OUT, TRANSFER, AUDIT_VERIFY
+    )  # CHECK_IN, CHECK_OUT, TRANSFER, AUDIT, VERIFY
+
+    user_role = db.Column(db.String(50))
+    previous_state = db.Column(db.JSON)
+    new_state = db.Column(db.JSON)
+    validation_status = db.Column(
+        db.String(20), nullable=False, default="verified"
+    )  # verified | rejected | duplicate
+    scan_fingerprint = db.Column(db.String(64), index=True)
 
     # Context
     notes = db.Column(db.String(500))
@@ -43,4 +51,5 @@ class ScanEvent(db.Model):
         db.Index(
             "ix_scan_events_org_timestamp", "organisation_id", "timestamp"
         ),
+        db.Index("ix_scan_events_user_id", "user_id"),
     )

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Barcode, Search, Calendar, MapPin, Tag, Activity, ArrowRight, Settings, QrCode, ArrowRightLeft } from 'lucide-react';
 import { useAssets } from '../hooks/useAssets';
-import { Can } from '../components/auth/Can';
+import { AssetLifecycleActions } from '../components/ui/AssetLifecycleActions';
+import { canCreateAsset, canEditAsset, canRequestTransfer } from '../lib/permissions';
 import { cn } from '../lib/utils';
 import { AssetModal } from '../components/ui/AssetModal';
 import { AssetQRCode } from '../components/ui/AssetQRCode';
@@ -13,12 +15,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 const STATUS_THEMES = {
   requested: 'bg-sky-50 text-sky-700 border-sky-200/50',
   approved: 'bg-indigo-50 text-indigo-700 border-indigo-200/50',
+  rejected: 'bg-rose-50 text-rose-700 border-rose-200/50',
   in_use: 'bg-emerald-50 text-emerald-700 border-emerald-200/50',
   maintenance: 'bg-amber-50 text-amber-700 border-amber-200/50',
   disposed: 'bg-slate-50 text-slate-600 border-slate-200/50',
 };
 
 const Assets = () => {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -26,6 +30,11 @@ const Assets = () => {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [selectedAssetForQR, setSelectedAssetForQR] = useState<any>(null);
   const [selectedAssetForTransfer, setSelectedAssetForTransfer] = useState<any>(null);
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) setSearch(q);
+  }, [searchParams]);
   
   const { data, isLoading } = useAssets({ 
     search: search || undefined, 
@@ -51,6 +60,7 @@ const Assets = () => {
     const labels: Record<string, string> = {
       requested: 'Requested',
       approved: 'Approved',
+      rejected: 'Rejected',
       in_use: 'In Use',
       maintenance: 'Maintenance',
       disposed: 'Disposed',
@@ -76,7 +86,7 @@ const Assets = () => {
           <p className="text-slate-500 font-medium tracking-tight text-lg ml-1">Manage your fixed assets.</p>
         </div>
         <div className="flex gap-3 relative z-10">
-          <Can roles={['admin', 'dept_head']}>
+          {canCreateAsset(user?.role) && (
             <button 
               onClick={() => setIsModalOpen(true)}
               className="btn-primary flex items-center gap-2 group shadow-[var(--shadow-elevation-2)]"
@@ -84,7 +94,7 @@ const Assets = () => {
             >
               <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" /> Add Asset
             </button>
-          </Can>
+          )}
         </div>
       </div>
 
@@ -191,6 +201,14 @@ const Assets = () => {
                     </div>
                   </div>
 
+                  <div className="pt-3 border-t border-slate-100/60">
+                    <AssetLifecycleActions
+                      assetId={asset.id}
+                      currentStatus={asset.status}
+                      compact
+                    />
+                  </div>
+
                   <div className="pt-4 border-t border-slate-100/60 flex items-center justify-between mt-auto">
                     <div className="flex -space-x-2">
                       <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-200 shadow-sm" />
@@ -204,18 +222,20 @@ const Assets = () => {
                       >
                         <QrCode className="w-4 h-4 group-hover/qr:scale-110 transition-transform" />
                       </button>
-                      <button 
-                        onClick={() => setSelectedAssetForTransfer(asset)}
-                        className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 text-slate-400 hover:text-brand-primary rounded-lg transition-colors group/transfer border border-transparent hover:border-slate-200"
-                        title="Request Transfer"
-                      >
-                        <ArrowRightLeft className="w-4 h-4 group-hover/transfer:scale-110 transition-transform" />
-                      </button>
+                      {canRequestTransfer(user?.role) && (
+                        <button 
+                          onClick={() => setSelectedAssetForTransfer(asset)}
+                          className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 text-slate-400 hover:text-brand-primary rounded-lg transition-colors group/transfer border border-transparent hover:border-slate-200"
+                          title="Request Transfer"
+                        >
+                          <ArrowRightLeft className="w-4 h-4 group-hover/transfer:scale-110 transition-transform" />
+                        </button>
+                      )}
                       <button 
                         onClick={() => handleEdit(asset)}
                         className="text-[11px] font-bold text-brand-primary hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 group/btn"
                       >
-                        View Details <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-0.5 transition-transform" />
+                        {canEditAsset(user?.role) ? 'Edit' : 'View'} Details <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
                   </div>

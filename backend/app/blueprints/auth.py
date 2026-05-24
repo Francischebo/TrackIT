@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import bcrypt
 
@@ -22,6 +22,7 @@ from app import db
 from app.audit_service import AuditService
 from app.errors import AuthenticationError, ConflictError, ValidationError
 from app.models import user, token
+from app.tenant_utils import get_user_by_id, public_schema
 from app.validation import (
     UserLoginSchema,
     UserRegistrationSchema,
@@ -145,8 +146,9 @@ def login():
     if errors:
         raise ValidationError("Validation failed", errors)
 
-    # Find user
-    user_obj = user.User.query.filter_by(email=validated_data["email"]).first()
+    # Find user in shared public schema (tenant schemas shadow this table)
+    with public_schema():
+        user_obj = user.User.query.filter_by(email=validated_data["email"]).first()
     if not user_obj or not user_obj.is_active:
         raise AuthenticationError("Invalid credentials")
 
@@ -237,7 +239,7 @@ def refresh_access_token():
         return resp, 200
 
     user_id = get_jwt_identity()
-    user_obj = user.User.query.get(user_id)
+    user_obj = get_user_by_id(user_id)
 
     if not user_obj or not user_obj.is_active:
         raise AuthenticationError("Invalid refresh token")
@@ -322,7 +324,7 @@ def get_current_user():
         return resp, 200
 
     user_id = get_jwt_identity()
-    user_obj = user.User.query.get(user_id)
+    user_obj = get_user_by_id(user_id)
 
     if not user_obj:
         raise AuthenticationError("User not found")

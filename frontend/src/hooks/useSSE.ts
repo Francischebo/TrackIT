@@ -28,12 +28,16 @@ export const useSSE = () => {
             queryClient.invalidateQueries({ queryKey: ['dashboard-movements'] });
             break;
           case 'NEW_ALERT':
+          case 'RESTOCK_ALERT':
             queryClient.invalidateQueries({ queryKey: ['active-alerts'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
-            addToast('warning', 'Low Stock Alert', payload.data.message || 'An item has reached critical levels.');
+            addToast('warning', 'Low Stock Alert', payload.data?.message || 'An item has reached critical levels.');
             break;
           case 'ASSET_TRANSFER':
+            queryClient.invalidateQueries({ queryKey: ['transfer-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['transfer-stats'] });
             queryClient.invalidateQueries({ queryKey: ['assets'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
             break;
           case 'SCAN_EVENT':

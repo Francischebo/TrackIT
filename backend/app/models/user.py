@@ -87,19 +87,41 @@ class User(UserMixin, db.Model):
             return True
 
         role_permissions = {
-            "admin": ["*:*"],  # Super access
+            "admin": [
+                "*:*",
+                "inventory:delete",
+                "assets:dispose",
+            ],
             "store_manager": [
-                "assets:*", "inventory:*", "transfers:*", "warehouses:*", 
-                "users:view", "reports:view"
+                "assets:*",
+                "inventory:create",
+                "inventory:edit",
+                "inventory:stock",
+                "transfers:*",
+                "warehouses:*",
+                "analytics:view",
+                "users:view",
+                "reports:view",
             ],
             "staff": [
-                "assets:view", "assets:create", "assets:edit",
-                "inventory:view", "inventory:edit",
-                "transfers:create", "transfers:view",
-                "warehouses:view"
+                "assets:view",
+                "assets:create",
+                "assets:edit",
+                "assets:transition",
+                "inventory:view",
+                "inventory:stock",
+                "transfers:create",
+                "transfers:view",
+                "warehouses:view",
             ],
             "dept_head": [
-                "assets:view", "assets:approve", "transfers:approve", "reports:view"
+                "assets:view",
+                "assets:approve",
+                "assets:transition",
+                "transfers:approve",
+                "transfers:create",
+                "transfers:view",
+                "reports:view",
             ],
             "viewer": [
                 "assets:view", "inventory:view", "warehouses:view", "reports:view"

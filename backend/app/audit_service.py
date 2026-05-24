@@ -51,14 +51,31 @@ class AuditService:
             except RuntimeError:
                 ip_address = None
 
-            # Create audit log; store details as a JSON/dict object (db.JSON)
+            user_role = None
+            if hasattr(g, "user") and g.user is not None:
+                user_role = getattr(g.user, "role", None)
+
+            enriched_details = dict(details) if isinstance(details, dict) else {}
+            if details is not None and not isinstance(details, dict):
+                enriched_details = {"payload": details}
+            if user_role:
+                enriched_details["role"] = user_role
+            if "previous_state" not in enriched_details and enriched_details.get(
+                "old_values"
+            ):
+                enriched_details["previous_state"] = enriched_details["old_values"]
+            if "new_state" not in enriched_details and enriched_details.get(
+                "new_values"
+            ):
+                enriched_details["new_state"] = enriched_details["new_values"]
+
             audit_log = inventory.AuditLog(
                 organisation_id=organisation_id,
                 user_id=user_id,
                 action=action,
                 entity_type=entity_type,
                 entity_id=entity_id,
-                details=details if details is not None else None,
+                details=enriched_details or None,
                 ip_address=ip_address,
             )
 

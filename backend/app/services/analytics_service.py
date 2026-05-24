@@ -102,6 +102,7 @@ class AnalyticsService:
                 "warehouse_name": r.name,
                 "total_bins": r.total_bins,
                 "occupied_bins": int(r.occupied_bins or 0),
+                "empty_bins": max(0, (r.total_bins or 0) - int(r.occupied_bins or 0)),
                 "utilization_percentage": (
                     round((int(r.occupied_bins or 0) / r.total_bins * 100), 1)
                     if r.total_bins > 0
@@ -112,12 +113,11 @@ class AnalyticsService:
         ]
 
     @staticmethod
-    def get_movement_trends(org_id, days=7):
+    def get_movement_trends(org_id, days=7, warehouse_id=None):
         """Get daily movement volume for time-series charts."""
         threshold = datetime.utcnow() - timedelta(days=days)
 
-        # Group by date and type
-        movements = (
+        query = (
             db.session.query(
                 func.date(StockMovement.date).label("day"),
                 StockMovement.type,
@@ -128,9 +128,16 @@ class AnalyticsService:
                 InventoryItem.organisation_id == org_id,
                 StockMovement.date >= threshold,
             )
-            .group_by("day", StockMovement.type)
-            .all()
         )
+
+        if warehouse_id:
+            from app.models.stock_levels import WarehouseStock
+
+            query = query.join(
+                WarehouseStock, WarehouseStock.item_id == InventoryItem.id
+            ).filter(WarehouseStock.warehouse_id == warehouse_id)
+
+        movements = query.group_by("day", StockMovement.type).all()
 
         # Reformat for frontend charts
         results = {}

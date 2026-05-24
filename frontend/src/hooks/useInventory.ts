@@ -50,3 +50,31 @@ export const useCreateInventoryItem = () => {
     },
   });
 };
+
+export const useUpdateInventoryItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<InventoryItem> & { id: number }) => {
+      const response = await api.put(`/inventory/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+  });
+};
+
+export const useDeleteInventoryItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const response = await api.delete(`/inventory/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+  });
+};

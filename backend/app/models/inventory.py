@@ -28,6 +28,7 @@ class InventoryItem(db.Model):
     reorder_level = db.Column(db.Integer, nullable=False, default=10)
     unit_price = db.Column(db.Numeric(12, 2), nullable=False)
     unit = db.Column(db.String(50))
+    qr_code_data = db.Column(db.String(500))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(

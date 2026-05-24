@@ -5,6 +5,8 @@ import { useCreateAsset, useUpdateAsset } from '../../hooks/useAssets';
 import { useDepartments } from '../../hooks/useDepartments';
 import { useWarehouses, useWarehouseDetails } from '../../hooks/useWarehouses';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { canCreateAsset, canEditAsset } from '../../lib/permissions';
 import type { Asset } from '../../types';
 
 interface AssetModalProps {
@@ -15,6 +17,8 @@ interface AssetModalProps {
 
 export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose, asset }) => {
   const { addToast } = useToast();
+  const { user } = useAuth();
+  const readOnly = asset ? !canEditAsset(user?.role) : !canCreateAsset(user?.role);
   const createAsset = useCreateAsset();
   const updateAsset = useUpdateAsset();
   const { data: departments } = useDepartments();
@@ -70,7 +74,11 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose, asset }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (readOnly) {
+      addToast('error', 'Read Only', 'You do not have permission to save changes.');
+      return;
+    }
+
     // Frontend Validation
     if (!formData.name.trim()) return addToast('error', 'Validation Error', 'Asset name is required');
     if (!formData.department_id) return addToast('error', 'Validation Error', 'Please select a department');
@@ -109,11 +117,12 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose, asset }
     <Modal 
       isOpen={isOpen} 
       onClose={onClose} 
-      title={asset ? "Edit Asset" : "Register New Asset"} 
+      title={asset ? (readOnly ? 'Asset Details' : 'Edit Asset') : 'Register New Asset'} 
       size="xl"
       footer={
         <>
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={onClose} className="btn-secondary">{readOnly ? 'Close' : 'Cancel'}</button>
+          {!readOnly && (
           <button 
             type="submit"
             form="asset-form"
@@ -122,10 +131,17 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose, asset }
           >
             {isPending ? (asset ? 'Updating...' : 'Registering...') : (asset ? 'Save Changes' : 'Register Asset')}
           </button>
+          )}
         </>
       }
     >
       <form id="asset-form" onSubmit={handleSubmit} className="space-y-6">
+        {readOnly && (
+          <p className="text-sm text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+            View-only mode. Status changes are available from the asset card actions.
+          </p>
+        )}
+        <fieldset disabled={readOnly} className="space-y-6 border-0 p-0 m-0 min-w-0">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -281,6 +297,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({ isOpen, onClose, asset }
             />
           </div>
         </div>
+        </fieldset>
       </form>
     </Modal>
   );

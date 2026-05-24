@@ -33,7 +33,7 @@ export interface Asset {
   asset_code: string;
   name: string;
   type: string;
-  status: 'requested' | 'approved' | 'in_use' | 'maintenance' | 'disposed';
+  status: 'requested' | 'approved' | 'rejected' | 'in_use' | 'maintenance' | 'disposed';
   condition: 'new' | 'good' | 'fair' | 'repair' | 'condemned';
   purchase_date: string;
   purchase_value: number;

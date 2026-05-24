@@ -54,10 +54,10 @@ export const useUpdateAsset = () => {
 export const useAssetTransition = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status, notes }: any) => {
-      const response = await api.post(`/assets/${id}/transition`, {
+    mutationFn: async ({ id, status, notes }: { id: number; status: string; notes?: string }) => {
+      const response = await api.put(`/assets/${id}/status`, {
         status,
-        notes,
+        comments: notes,
       });
       return response.data;
     },

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { History, Search, Filter, ArrowRight, User, Terminal, Database, Clock, X, Code2 } from 'lucide-react';
+import { History, Search, Filter, ArrowRight, User, Terminal, Database, Clock, X, Code2, CloudDownload } from 'lucide-react';
+import { downloadAuthenticatedFile } from '../lib/download';
+import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuditLogs } from '../hooks/useAuditLogs';
 import { cn } from '../lib/utils';
@@ -8,6 +10,24 @@ const AuditLogs = () => {
   const [search, setSearch] = useState('');
   const { data: logs, isLoading } = useAuditLogs({ q: search || undefined });
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const { addToast } = useToast();
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      await downloadAuthenticatedFile(
+        '/audit/export',
+        {},
+        `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`,
+      );
+      addToast('success', 'Export Complete', 'Audit log CSV has been downloaded.');
+    } catch {
+      addToast('error', 'Export Failed', 'Could not export audit logs.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -24,8 +44,21 @@ const AuditLogs = () => {
           <p className="text-slate-500 font-medium tracking-tight">Immutable record of all system interactions and data mutations.</p>
         </div>
         <div className="flex gap-3">
-          <button className="btn-secondary flex items-center gap-2">
-            <Filter className="w-4 h-4" /> Comprehensive View
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={exporting}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50"
+          >
+            <CloudDownload className="w-4 h-4" />
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Filter className="w-4 h-4" /> Clear Filters
           </button>
         </div>
       </div>

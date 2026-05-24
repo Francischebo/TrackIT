@@ -38,7 +38,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: { pathname: location.pathname, search: location.search } }} replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
+  if (
+    allowedRoles
+    && user.role !== 'admin'
+    && !allowedRoles.includes(user.role as UserRole)
+  ) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-8">
         <motion.div 

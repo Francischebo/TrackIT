@@ -57,7 +57,7 @@ def global_search():
     # Search Assets (Match ALL terms)
     asset_filters = [
         Asset.organisation_id == org_id,
-        Asset.is_active == True
+        Asset.status != "disposed",
     ]
     
     # Each term must match at least one field
@@ -80,11 +80,16 @@ def global_search():
     if user_names:
         final_asset_conditions.append(Asset.assigned_to.in_(user_names))
 
-    assets_query = Asset.query.outerjoin(Department).filter(
-        Asset.organisation_id == org_id,
-        Asset.is_active == True,
-        db.or_(*final_asset_conditions)
-    ).limit(10).all()
+    assets_query = (
+        Asset.query.outerjoin(Department)
+        .filter(
+            Asset.organisation_id == org_id,
+            Asset.status != "disposed",
+            db.or_(*final_asset_conditions),
+        )
+        .limit(10)
+        .all()
+    )
 
     # Search Inventory (Match ALL terms)
     inventory_filters = [

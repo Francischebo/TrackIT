@@ -9,23 +9,62 @@ import {
   Search,
   Calendar,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Package,
+  Layers
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { useDashboardSummary } from '../hooks/useDashboard';
+import { useDownloadReport } from '../hooks/useReports';
+import { useAuth } from '../context/AuthContext';
+import { canAccess } from '../lib/permissions';
+import type { UserRole } from '../types';
+import type { ReportFormat } from '../hooks/useReports';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 
-const REPORT_TYPES = [
+type ReportCardFormat = ReportFormat;
+
+const REPORT_TYPES: {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  formats: ReportCardFormat[];
+  roles: UserRole[];
+  icon: typeof FileText;
+  color: string;
+}[] = [
   {
     id: 'asset-register',
     title: 'Master Asset Register',
     subtitle: 'Consolidated Institutional Ledger',
     description: 'Comprehensive report of all institutional assets, including current valuation, depreciation schedules, and verification metadata.',
     formats: ['pdf', 'excel'],
+    roles: ['admin', 'auditor'] as UserRole[],
     icon: FileText,
     color: 'from-indigo-500 to-blue-600',
-    endpoint: '/api/reports/asset-register'
+  },
+  {
+    id: 'inventory-register',
+    title: 'Inventory Stock Register',
+    subtitle: 'Warehouse & SKU Ledger',
+    description: 'Professional stock register with quantities, unit pricing, line valuations, and reorder status for every active SKU.',
+    formats: ['excel', 'pdf'],
+    roles: ['admin', 'auditor', 'store_manager'] as UserRole[],
+    icon: Package,
+    color: 'from-emerald-500 to-teal-600',
+  },
+  {
+    id: 'full-export',
+    title: 'Combined Institutional Workbook',
+    subtitle: 'Assets + Inventory (Multi-Sheet)',
+    description: 'Single Excel workbook with separate professionally formatted sheets for the asset register and inventory stock register.',
+    formats: ['excel'],
+    roles: ['admin'] as UserRole[],
+    icon: Layers,
+    color: 'from-violet-500 to-purple-600',
   },
   {
     id: 'maintenance',
@@ -33,9 +72,9 @@ const REPORT_TYPES = [
     subtitle: 'Technical Service Schedule',
     description: 'Advanced report identifying assets requiring technical attention based on service intervals and condition flags.',
     formats: ['pdf'],
+    roles: ['admin', 'store_manager'] as UserRole[],
     icon: Wrench,
     color: 'from-amber-400 to-orange-600',
-    endpoint: '/api/reports/maintenance'
   },
   {
     id: 'disposal',
@@ -43,9 +82,9 @@ const REPORT_TYPES = [
     subtitle: 'Decommissioning Verification',
     description: 'Official register of condemned assets recommended for decommissioning under institutional guidelines.',
     formats: ['pdf'],
+    roles: ['admin', 'store_manager'] as UserRole[],
     icon: Trash2,
     color: 'from-rose-500 to-pink-600',
-    endpoint: '/api/reports/disposal'
   },
   {
     id: 'audit-trail',
@@ -53,26 +92,31 @@ const REPORT_TYPES = [
     subtitle: 'Verifiable System Interactions',
     description: 'Deep-dive security log of all institutional asset movements and personnel interactions for compliance verification.',
     formats: ['pdf'],
+    roles: ['admin', 'auditor'] as UserRole[],
     icon: ShieldCheck,
     color: 'from-slate-700 to-slate-900',
-    endpoint: '/api/reports/audit-trail'
   }
 ];
 
 const Reports = () => {
+  const navigate = useNavigate();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const { data: summary, isLoading } = useDashboardSummary();
+  const { user } = useAuth();
+  const downloadReport = useDownloadReport();
 
-  const downloadReport = (endpoint: string, format: string) => {
-    let url = `${endpoint}?format=${format}`;
-    if (dateFrom) {
-      url += `&date_from=${new Date(dateFrom).toISOString()}`;
-    }
-    if (dateTo) {
-      url += `&date_to=${new Date(dateTo).toISOString()}`;
-    }
-    window.open(url, '_blank');
+  const visibleReports = REPORT_TYPES.filter((r) =>
+    canAccess(user?.role, [...r.roles]),
+  );
+
+  const handleDownload = (reportId: string, format: ReportFormat) => {
+    downloadReport.mutate({
+      reportId,
+      format,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    });
   };
 
   return (
@@ -91,7 +135,7 @@ const Reports = () => {
           </h1>
           <p className="text-slate-500 font-medium text-xl max-w-2xl leading-relaxed">
              Access audit-ready documentation and high-expertise business intelligence exports. 
-             All reports are generated with cryptographic signatures for verifiable compliance.
+             All reports include institutional headers, column headings, and formatted data tables.
           </p>
         </div>
 
@@ -227,7 +271,7 @@ const Reports = () => {
 
       {/* Intelligence Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative z-10">
-        {REPORT_TYPES.map((report, index) => (
+        {visibleReports.map((report, index) => (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
@@ -254,19 +298,21 @@ const Reports = () => {
                </div>
 
                <div className="mt-auto pt-8 border-t border-slate-50 flex items-center justify-between">
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
                      {report.formats.includes('pdf') && (
                         <button 
-                           onClick={() => downloadReport(report.endpoint, 'pdf')}
-                           className="flex items-center gap-2.5 px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary transition-all shadow-lg hover:-translate-y-1"
+                           onClick={() => handleDownload(report.id, 'pdf')}
+                           disabled={downloadReport.isPending}
+                           className="flex items-center gap-2.5 px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary transition-all shadow-lg hover:-translate-y-1 disabled:opacity-50"
                         >
                            <CloudDownload className="w-4 h-4" /> Download PDF
                         </button>
                      )}
                      {report.formats.includes('excel') && (
                         <button 
-                           onClick={() => downloadReport(report.endpoint, 'excel')}
-                           className="flex items-center gap-2.5 px-6 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-emerald-500 hover:text-emerald-600 transition-all shadow-sm hover:-translate-y-1"
+                           onClick={() => handleDownload(report.id, 'excel')}
+                           disabled={downloadReport.isPending}
+                           className="flex items-center gap-2.5 px-6 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-emerald-500 hover:text-emerald-600 transition-all shadow-sm hover:-translate-y-1 disabled:opacity-50"
                         >
                            <FileSpreadsheet className="w-4 h-4" /> Export XLSX
                         </button>
@@ -274,7 +320,9 @@ const Reports = () => {
                   </div>
                   <div className="hidden sm:flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Report Status</span>
-                     <span className="text-xs font-bold text-slate-900">Ready to Generate</span>
+                     <span className="text-xs font-bold text-slate-900">
+                       {downloadReport.isPending ? 'Generating…' : 'Ready to Generate'}
+                     </span>
                   </div>
                </div>
             </div>
@@ -295,8 +343,12 @@ const Reports = () => {
                The Nova Lite System Intelligence Hub ensures that your institution remains audit-ready 24/7 with zero data discrepancies.
             </p>
          </div>
-         <button className="flex items-center gap-3 px-8 py-5 bg-brand-primary text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-2xl hover:bg-brand-600 transition-all shadow-brand-primary/20">
-            Verify Integrity <ArrowRight className="w-4 h-4" />
+         <button
+           type="button"
+           onClick={() => navigate('/audit-logs')}
+           className="flex items-center gap-3 px-8 py-5 bg-brand-primary text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-2xl hover:bg-brand-600 transition-all shadow-brand-primary/20"
+         >
+            View Audit Ledger <ArrowRight className="w-4 h-4" />
          </button>
       </div>
     </div>

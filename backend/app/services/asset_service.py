@@ -2,8 +2,9 @@ from app import db
 from app.audit_service import AuditService
 from app.repositories.asset_repository import AssetRepository
 from app.models import organization
-from app.utils.security import generate_signed_qr
-from app.errors import NotFoundError, ConflictError, ValidationError
+from app.services.qr_service import QRService
+from app.errors import NotFoundError, ConflictError, ValidationError, AuthorizationError
+from app.rbac import assert_can_transition_status, assert_not_read_only
 from app.db_utils import transaction_retry
 from datetime import datetime
 from app.services.event_bus import event_bus
@@ -91,20 +92,11 @@ class AssetService:
             )
             raise ConflictError("Serial number already exists")
 
-        # Generate signed QR code data using system URL for security
-        # Format: https://trackit.app/tracking?qr_payload=asset:<org_id>:<asset_code>
-        # Note: We still sign the inner payload for integrity
-        inner_payload = f"asset:{org_id}:{validated_data['asset_code']}"
-        signed_payload = generate_signed_qr(inner_payload)
-        
-        # We store the full URL in qr_code_data
-        # In production, this base URL should be in config
-        base_url = "http://localhost:5173/tracking" # Development default
-        validated_data["qr_code_data"] = f"{base_url}?data={signed_payload}"
-
         new_asset = self.repo.create_asset(
             org_id, validated_data, session=self.session
         )
+
+        QRService.ensure_asset_qr(new_asset)
 
         # Sync with Inventory (Safely within current transaction without calling nested service commits)
         try:
@@ -198,7 +190,10 @@ class AssetService:
         return new_asset
 
     @transaction_retry(max_retries=3)
-    def update_asset(self, asset_id, org_id, data):
+    def update_asset(self, asset_id, org_id, data, user_role=None):
+        if user_role:
+            assert_not_read_only(user_role, "edit assets")
+
         # Reload with lock
         from app.models.asset import Asset
 
@@ -228,7 +223,19 @@ class AssetService:
 
         updatable_fields = {
             k: data[k]
-            for k in ["name", "assigned_to", "location", "condition", "warehouse_id", "bin_id"]
+            for k in [
+                "name",
+                "assigned_to",
+                "location",
+                "condition",
+                "warehouse_id",
+                "bin_id",
+                "type",
+                "serial_number",
+                "purchase_date",
+                "purchase_value",
+                "useful_life",
+            ]
             if k in data
         }
         self.repo.update_asset(asset_obj, updatable_fields)
@@ -282,14 +289,19 @@ class AssetService:
                 f"Invalid status transition from {old_status} to {new_status}"
             )
 
-        # role checks are done at controller earlier; service just applies change
+        if current_user_role:
+            assert_can_transition_status(
+                current_user_role, old_status, new_status
+            )
+        elif new_status == "disposed":
+            raise AuthorizationError("Only admins can dispose assets")
         asset_obj.status = new_status
         asset_obj.updated_at = db.func.now()
         AuditService.log_asset_change(
             asset_obj,
             "ASSET_STATUS_CHANGED",
             old_values={"status": old_status},
-            new_values={"status": new_status},
+            new_values={"status": new_status, "comments": comments},
             session=self.session,
         )
         self.session.commit()

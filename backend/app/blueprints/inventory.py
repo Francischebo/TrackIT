@@ -6,6 +6,7 @@ from app import db
 from app.auth_utils import (
     get_current_organisation_id,
     jwt_required_with_user,
+    require_permission,
     require_role,
 )
 from app.errors import ValidationError
@@ -130,7 +131,7 @@ def get_inventory_item(item_id):
 
 @inventory_bp.route("", methods=["POST"])
 @jwt_required_with_user
-@require_role("admin", "staff", "store_manager")
+@require_permission("inventory:create")
 @limiter.limit("20 per minute")
 def create_inventory_item():
     """Create new inventory item"""
@@ -170,7 +171,7 @@ def create_inventory_item_options():
 
 @inventory_bp.route("/<int:item_id>", methods=["PUT"])
 @jwt_required_with_user
-@require_role("admin", "staff", "store_manager")
+@require_permission("inventory:edit")
 @limiter.limit("30 per minute")
 def update_inventory_item(item_id):
     """Update inventory item"""
@@ -202,7 +203,7 @@ def update_inventory_item_options(item_id):
 
 @inventory_bp.route("/<int:item_id>/stock", methods=["POST"])
 @jwt_required_with_user
-@require_role("admin", "staff", "store_manager")
+@require_permission("inventory:stock")
 @limiter.limit("50 per minute")
 def update_stock(item_id):
     """Update stock levels (IN/OUT movements)"""
@@ -256,7 +257,7 @@ def update_stock_options(item_id):
 
 @inventory_bp.route("/<int:item_id>", methods=["DELETE"])
 @jwt_required_with_user
-@require_role("admin")
+@require_permission("inventory:delete")
 @limiter.limit("10 per minute")
 def delete_inventory_item(item_id):
     """Delete inventory item (admin only)"""

@@ -5,6 +5,7 @@ from app.repositories.inventory_repository import InventoryRepository
 from app.errors import NotFoundError, ConflictError, ValidationError
 from app.db_utils import transaction_retry
 from app.services.event_bus import event_bus
+from app.services.qr_service import QRService
 from flask import current_app
 
 
@@ -56,6 +57,7 @@ class InventoryService:
         item = self.repo.create_item(
             org_id, validated_data, session=self.session
         )
+        QRService.ensure_inventory_qr(item)
         # Audit log (added to same session)
         AuditService.log_inventory_change(
             item,
@@ -108,6 +110,16 @@ class InventoryService:
             ]
         }
 
+        if "quantity" in data:
+            raise ValidationError(
+                "Quantity cannot be edited directly; use stock movements"
+            )
+
+        if data.get("reorder_level") is not None and data["reorder_level"] < 0:
+            raise ValidationError("Reorder level cannot be negative")
+        if data.get("unit_price") is not None and data["unit_price"] < 0:
+            raise ValidationError("Unit price cannot be negative")
+
         try:
             updatable_fields = {
                 k: data[k]
@@ -124,8 +136,18 @@ class InventoryService:
             if "sku" in data:
                 item.sku = data["sku"]
 
-            AuditService.log_inventory_change(
-                item, "INVENTORY_ITEM_UPDATED", session=self.session
+            AuditService.log_action(
+                action="INVENTORY_ITEM_UPDATED",
+                entity_type="inventory_item",
+                entity_id=item.id,
+                details={
+                    "old_values": old_values,
+                    "new_values": {
+                        k: getattr(item, k) for k in old_values.keys()
+                    },
+                },
+                organisation_id=org_id,
+                session=self.session,
             )
             self.session.commit()
             

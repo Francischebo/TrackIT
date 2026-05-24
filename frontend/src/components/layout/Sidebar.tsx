@@ -137,11 +137,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           const isActive = location.pathname === item.path;
           
           const restrictedRoles: Record<string, UserRole[]> = {
-            '/analytics': ['admin', 'store_manager', 'auditor'],
+            '/analytics': ['admin', 'store_manager', 'auditor', 'dept_head', 'staff', 'viewer'],
             '/users': ['admin'],
             '/departments': ['admin'],
             '/settings': ['admin'],
-            '/reports': ['admin', 'auditor'],
+            '/reports': ['admin', 'auditor', 'store_manager'],
             '/audit-logs': ['admin', 'auditor']
           };
 
@@ -184,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
       <div className="p-4 border-t border-slate-100/60 mt-auto bg-slate-50/50 relative z-10">
         <button 
-          onClick={logout}
+          onClick={() => { void logout(); }}
           className="flex items-center gap-3.5 w-full px-4 py-3 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:shadow-sm hover:border hover:border-rose-100 transition-all font-semibold text-sm group"
         >
           <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />

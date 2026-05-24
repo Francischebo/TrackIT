@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
 interface User {
@@ -12,41 +12,85 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (token: string, userData: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function mapUserPayload(data: Record<string, unknown> | null | undefined): User | null {
+  if (!data || typeof data.id !== 'number') {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    username: String(data.username ?? ''),
+    role: String(data.role ?? 'staff'),
+    organisation_id: Number(data.organisation_id ?? 0),
+  };
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const checkSession = async () => {
+  const checkSession = useCallback(async () => {
+    const sessionConfig = { skipAuthRedirect: true } as const;
+
+    try {
+      const resp = await api.get('/auth/me', sessionConfig);
+      const mapped = mapUserPayload(resp.data);
+      if (mapped) {
+        setUser(mapped);
+        return;
+      }
+    } catch {
+      // Access token may have expired; attempt silent refresh once.
       try {
-        const resp = await api.get('/auth/me');
-        if (resp && resp.data) {
-          setUser(resp.data);
-        } else {
-          setUser(null);
+        await api.post('/auth/refresh', {}, sessionConfig);
+        const retry = await api.get('/auth/me', sessionConfig);
+        const mapped = mapUserPayload(retry.data);
+        if (mapped) {
+          setUser(mapped);
+          return;
         }
-      } catch (err) {
-        console.error('Session check failed', err);
-        setUser(null);
-      } finally {
+      } catch {
+        // Expected for logged-out visitors.
+      }
+    }
+
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const init = async () => {
+      await checkSession();
+      if (active) {
         setLoading(false);
       }
     };
 
-    checkSession();
-  }, []);
+    init();
+
+    return () => {
+      active = false;
+    };
+  }, [checkSession]);
 
   const login = (_token: string, userData: User) => {
     setUser(userData);
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout', {}, { skipAuthRedirect: true } as const);
+    } catch {
+      // Clear local state even if the server session is already gone.
+    } finally {
+      setUser(null);
+    }
   };
 
   return (

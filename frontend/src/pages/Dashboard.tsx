@@ -15,7 +15,7 @@ const Dashboard = () => {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<number | undefined>(undefined);
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary(selectedWarehouseId);
   const { data: alerts, isLoading: alertsLoading } = useAlerts();
-  const { data: movements, isLoading: movementsLoading } = useDashboardMovements(trendDays);
+  const { data: movements, isLoading: movementsLoading } = useDashboardMovements(trendDays, selectedWarehouseId);
   const { data: warehouses } = useWarehouses();
   const navigate = useNavigate();
 

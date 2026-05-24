@@ -5,8 +5,15 @@ import {
   ChevronRight, ArrowUpRight, ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import {
+  useAllowedScanActions,
+  useRecordScan,
+  useTrackingHistory,
+} from '../hooks/useTracking';
+import { TrackingTimeline } from '../components/ui/TrackingTimeline';
+import { canPerformScanAction, isReadOnlyScanner } from '../lib/permissions';
 import { cn } from '../lib/utils';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
@@ -39,7 +46,7 @@ const Tracking = () => {
   const [qrInput, setQrInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
-  const [actionType, setActionType] = useState('CHECK_IN');
+  const [actionType, setActionType] = useState('VERIFY');
   const [notes, setNotes] = useState('');
   const [viewMode, setViewMode] = useState<'MAP' | 'DETAILS'>('DETAILS');
   const [showScanner, setShowScanner] = useState(false);
@@ -47,7 +54,26 @@ const Tracking = () => {
   const [mapCenter, setMapCenter] = useState<[number, number]>([-1.286389, 36.817223]); // Default to Nairobi
   
   const { addToast } = useToast();
+  const { user } = useAuth();
+  const recordScan = useRecordScan();
+  const { data: allowedActions } = useAllowedScanActions();
   const scannerRef = useRef<any>(null);
+
+  const actionOptions =
+    allowedActions?.actions?.filter((a) =>
+      canPerformScanAction(user?.role, a),
+    ) || ['VERIFY', 'AUDIT'];
+
+  const { data: timelineHistory, isLoading: historyLoading } = useTrackingHistory(
+    scanResult?.item?.type,
+    scanResult?.item?.id,
+  );
+
+  useEffect(() => {
+    if (actionOptions.length && !actionOptions.includes(actionType)) {
+      setActionType(actionOptions[0]);
+    }
+  }, [actionOptions.join(','), user?.role]);
 
   // Auto-scan if data parameter is present in URL
   useEffect(() => {
@@ -122,17 +148,17 @@ const Tracking = () => {
         lon = preciseLoc.lon;
       }
 
-      const response = await api.post('/tracking/scan', {
+      const response = await recordScan.mutateAsync({
         qr_data: data,
         action_type: actionType,
         notes: notes,
         lat: lat,
-        lon: lon
+        lon: lon,
       });
 
-      setScanResult(response.data);
-      if (response.data.history) {
-          setHistory(response.data.history);
+      setScanResult(response);
+      if (response.history) {
+        setHistory(response.history);
       }
       
       if (lat && lon) {
@@ -223,7 +249,7 @@ const Tracking = () => {
                   <Navigation className="w-3 h-3" /> Select Operation Type
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['CHECK_IN', 'CHECK_OUT', 'TRANSFER', 'AUDIT'].map((type) => (
+                  {actionOptions.map((type) => (
                     <button
                       key={type}
                       type="button"
@@ -264,12 +290,18 @@ const Tracking = () => {
                 </div>
               </div>
 
+              {isReadOnlyScanner(user?.role) && (
+                <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 font-bold">
+                  Read-only role: VERIFY and AUDIT scans only. State changes are blocked server-side.
+                </p>
+              )}
+
               <button 
                 onClick={handleManualSubmit}
-                disabled={isProcessing || !qrInput}
+                disabled={isProcessing || !qrInput || recordScan.isPending}
                 className="btn-primary w-full h-14 shadow-xl shadow-brand-primary/20 flex items-center justify-center gap-3 text-sm font-black uppercase tracking-widest disabled:opacity-50"
               >
-                {isProcessing ? (
+                {isProcessing || recordScan.isPending ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <><Smartphone className="w-5 h-5" /> Execute Tracking</>
@@ -445,26 +477,14 @@ const Tracking = () => {
                          </div>
                        )}
 
-                       {/* Recent Activity List */}
-                       <div className="enterprise-card p-6 bg-slate-900 text-white border-none shadow-2xl">
-                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center justify-between">
-                             Live Activity Ledger
-                             <ArrowUpRight className="w-4 h-4" />
+                       <div className="enterprise-card p-6 bg-white border border-slate-100 shadow-xl md:col-span-2">
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 flex items-center gap-2">
+                             <History className="w-4 h-4" /> Tracking Timeline
                           </h4>
-                          <div className="space-y-3">
-                             <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                   <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400">
-                                      <Navigation className="w-5 h-5" />
-                                   </div>
-                                   <div>
-                                      <p className="text-xs font-bold">{actionType.replace('_', ' ')}</p>
-                                      <p className="text-[10px] text-slate-500">Processed Just Now</p>
-                                   </div>
-                                </div>
-                                <ChevronRight className="w-4 h-4 text-slate-600" />
-                             </div>
-                          </div>
+                          <TrackingTimeline
+                            events={timelineHistory || scanResult.history || []}
+                            loading={historyLoading}
+                          />
                        </div>
                     </div>
                   </div>

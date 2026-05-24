@@ -2,14 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings as SettingsIcon, Building, Shield, Bell, Database, Globe, Save, Upload, Lock, Clock, Mail, AlertTriangle, Download, Trash2, Key } from 'lucide-react';
 import { Logo } from '../components/ui/Logo';
 import { useOrganizationSettings, useUpdateOrganizationSettings, useUploadOrganizationLogo, useExportData, usePurgeData } from '../hooks/useSettings';
+import { useToast } from '../context/ToastContext';
 import { Can } from '../components/auth/Can';
 import { cn } from '../lib/utils';
+import { resolveStaticUrl } from '../lib/urls';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Settings = () => {
-  const { data: org, isLoading } = useOrganizationSettings();
+  const { data: org, isLoading, isError, error, refetch } = useOrganizationSettings();
   const updateOrg = useUpdateOrganizationSettings();
   const uploadLogo = useUploadOrganizationLogo();
+  const { addToast } = useToast();
   const exportData = useExportData();
   const purgeData = usePurgeData();
   
@@ -34,17 +37,34 @@ const Settings = () => {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      uploadLogo.mutate(e.target.files[0]);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      addToast('error', 'File Too Large', 'Logo must be 2MB or smaller.');
+      return;
     }
+    uploadLogo.mutate(file);
   };
 
   const getPreference = (key: string, defaultValue: any = false) => {
     return org?.preferences?.[key] ?? defaultValue;
   };
 
-  const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app') ? 'https://trackit-uxil.onrender.com' : 'http://localhost:5000');
-  
+  if (isError) {
+    return (
+      <div className="max-w-lg mx-auto py-20 text-center space-y-4">
+        <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" />
+        <h2 className="text-xl font-bold text-slate-800">Could not load settings</h2>
+        <p className="text-sm text-slate-500">
+          {(error as any)?.response?.data?.message || 'Access denied or server error.'}
+        </p>
+        <button type="button" onClick={() => refetch()} className="btn-primary">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-20">
       <div>
@@ -120,7 +140,7 @@ const Settings = () => {
                               className="w-24 h-24 rounded-2xl bg-slate-50 flex items-center justify-center border-2 border-dashed border-slate-200 group-hover:border-brand-primary/50 transition-colors cursor-pointer overflow-hidden"
                             >
                                {org?.logo_url ? (
-                                  <img src={`${API_URL}${org.logo_url}`} alt="Organization Logo" className="w-full h-full object-contain" />
+                                  <img src={resolveStaticUrl(org.logo_url)} alt="Organization Logo" className="w-full h-full object-contain" />
                                ) : (
                                   <Logo showText={false} />
                                )}
@@ -174,6 +194,20 @@ const Settings = () => {
                               </button>
                             </div>
                           </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Default Currency</label>
+                            <select
+                              value={getPreference('currency', 'KES')}
+                              disabled={updateOrg.isPending}
+                              onChange={(e) => handlePreferenceToggle('currency', e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold outline-none"
+                            >
+                              {['KES', 'USD', 'EUR', 'GBP', 'UGX', 'TZS'].map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                            <p className="text-[10px] text-slate-400 ml-1">Used on dashboard, reports, and analytics.</p>
+                          </div>
                        </div>
                     </div>
 
@@ -215,12 +249,15 @@ const Settings = () => {
                     </div>
 
                     <div className="space-y-6">
+                      <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                        Policy toggles are saved to your organization profile. Currency and alert preferences are active immediately. Session timeout and 2FA flags are stored for compliance reporting and future enforcement.
+                      </p>
                       <div className="flex items-center justify-between p-5 border border-slate-100 rounded-2xl bg-slate-50">
                         <div className="flex items-center gap-4">
                           <div className="p-3 bg-white rounded-xl shadow-sm"><Lock className="w-5 h-5 text-indigo-500" /></div>
                           <div>
                             <h4 className="font-bold text-slate-800">Two-Factor Authentication (2FA)</h4>
-                            <p className="text-xs text-slate-500 mt-0.5">Require multi-factor authentication for all staff members.</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Policy flag — enforcement planned in a future release.</p>
                           </div>
                         </div>
                         <button 

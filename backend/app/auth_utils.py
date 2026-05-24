@@ -3,7 +3,7 @@ from functools import wraps
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
 from app.errors import AuthenticationError, AuthorizationError
-from app.models import user
+from app.tenant_utils import get_user_by_id
 
 
 def jwt_required_with_user(f):
@@ -16,12 +16,8 @@ def jwt_required_with_user(f):
 
         user_id = get_jwt_identity()
         jwt_data = get_jwt()
-        try:
-            user_id = int(user_id)
-        except (TypeError, ValueError):
-            pass
 
-        user_obj = user.User.query.get(user_id)
+        user_obj = get_user_by_id(user_id)
         if not user_obj or not user_obj.is_active:
             raise AuthenticationError("User not found or inactive")
 

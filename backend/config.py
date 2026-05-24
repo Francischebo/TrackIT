@@ -36,6 +36,13 @@ class Config:
     # Security
     BCRYPT_LOG_ROUNDS = 12
 
+    # QR tracking
+    TRACKING_PUBLIC_URL = os.environ.get(
+        "TRACKING_PUBLIC_URL", "http://localhost:5173/tracking"
+    )
+    QR_PAYLOAD_TTL_DAYS = int(os.environ.get("QR_PAYLOAD_TTL_DAYS", "365"))
+    SCAN_DEDUP_SECONDS = int(os.environ.get("SCAN_DEDUP_SECONDS", "30"))
+
     # SQLAlchemy engine options - helpful for PostgreSQL in production
     # Note: client_encoding is PostgreSQL-specific, only set for PostgreSQL
     _db_url = os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_URL_PROD")
@@ -60,6 +67,7 @@ class DevelopmentConfig(Config):
     )
     SESSION_COOKIE_SECURE = False
     JWT_COOKIE_SECURE = False
+    JWT_COOKIE_SAMESITE = "Lax"
 
     # Development CORS
     CORS_ORIGINS = [

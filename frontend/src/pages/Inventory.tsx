@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Package, Search, Plus, Minus, MoreVertical, Filter, AlertCircle, QrCode, ArrowUpRight, ArrowRightLeft } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { cn } from '../lib/utils';
@@ -6,6 +7,15 @@ import { StockAdjustmentModal } from '../components/ui/StockAdjustmentModal';
 import { useToast } from '../context/ToastContext';
 import { Can } from '../components/auth/Can';
 import { InventoryModal } from '../components/ui/InventoryModal';
+import { InventoryEditModal } from '../components/ui/InventoryEditModal';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
+import { useDeleteInventoryItem } from '../hooks/useInventory';
+import {
+  canAdjustStock,
+  canDeleteInventory,
+  canEditInventory,
+  canRequestTransfer,
+} from '../lib/permissions';
 import { TransferRequestModal } from '../components/ui/TransferRequestModal';
 import { AssetQRCode } from '../components/ui/AssetQRCode';
 import { Modal } from '../components/ui/Modal';
@@ -13,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 
 const Inventory = () => {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedItemForQR, setSelectedItemForQR] = useState<any>(null);
@@ -20,8 +31,17 @@ const Inventory = () => {
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'IN' | 'OUT'>('IN');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) setSearch(q);
+  }, [searchParams]);
+  const { addToast } = useToast();
+  const deleteItem = useDeleteInventoryItem();
   
   const { data, isLoading } = useInventory({ search: search || undefined, page });
   const items = (data as any)?.inventory || [];
@@ -37,6 +57,34 @@ const Inventory = () => {
   const openTransfer = (item: any) => {
     setSelectedItemForTransfer(item);
     setIsTransferModalOpen(true);
+  };
+
+  const openEdit = (item: any) => {
+    setSelectedItem(item);
+    setIsEditModalOpen(true);
+  };
+
+  const openDelete = (item: any) => {
+    setSelectedItem(item);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedItem) return;
+    try {
+      await deleteItem.mutateAsync(selectedItem.id);
+      addToast('success', 'Item Deleted', `${selectedItem.name} was removed.`);
+      setIsDeleteModalOpen(false);
+      setSelectedItem(null);
+    } catch (err: any) {
+      addToast(
+        'error',
+        'Delete Failed',
+        err.response?.data?.message ||
+          err.forbiddenMessage ||
+          'Could not delete this item.',
+      );
+    }
   };
 
 
@@ -163,7 +211,8 @@ const Inventory = () => {
                     </td>
                     <td className="table-cell md:text-right relative" data-label="Quick Actions">
                       <div className="flex items-center justify-end gap-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all duration-300 md:translate-x-4 group-hover:translate-x-0">
-                        <Can roles={['admin', 'store_manager']}>
+                        {canAdjustStock(user?.role) && (
+                          <>
                           <button 
                             onClick={() => openAdjustment(item, 'IN')}
                             className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100/50 hover:border-emerald-200 hover:shadow-sm"
@@ -178,8 +227,10 @@ const Inventory = () => {
                           >
                             <Minus className="w-4 h-4" />
                           </button>
-                        </Can>
+                          </>
+                        )}
                         <div className="w-px h-5 bg-slate-200 mx-1 hidden md:block" />
+                        {canRequestTransfer(user?.role) && (
                         <button 
                           onClick={() => openTransfer(item)}
                           className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center hover:bg-brand-50 text-brand-primary rounded-lg transition-colors"
@@ -187,6 +238,7 @@ const Inventory = () => {
                         >
                           <ArrowRightLeft className="w-4 h-4" />
                         </button>
+                        )}
                         <button 
                           onClick={() => setSelectedItemForQR(item)}
                           className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center hover:bg-brand-50 text-slate-400 hover:text-brand-primary rounded-lg transition-colors"
@@ -194,9 +246,37 @@ const Inventory = () => {
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
-                        <button className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center hover:bg-slate-100 text-slate-400 rounded-lg transition-colors">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                        {(canEditInventory(user?.role) || canDeleteInventory(user?.role)) && (
+                          <div className="relative group/menu">
+                            <button
+                              type="button"
+                              className="w-10 h-10 md:w-8 md:h-8 flex items-center justify-center hover:bg-slate-100 text-slate-400 rounded-lg transition-colors"
+                              aria-label="More actions"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            <div className="absolute right-0 top-full mt-1 z-30 hidden group-hover/menu:block min-w-[140px] bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+                              {canEditInventory(user?.role) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(item)}
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  Edit item
+                                </button>
+                              )}
+                              {canDeleteInventory(user?.role) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openDelete(item)}
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                >
+                                  Delete item
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </motion.tr>
@@ -239,6 +319,31 @@ const Inventory = () => {
       <InventoryModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      <InventoryEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedItem(null);
+        }}
+        item={selectedItem}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setSelectedItem(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        isLoading={deleteItem.isPending}
+        title="Delete inventory item?"
+        message={
+          selectedItem
+            ? `Permanently remove "${selectedItem.name}"? Items with remaining stock cannot be deleted.`
+            : ''
+        }
       />
 
 

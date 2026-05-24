@@ -65,8 +65,11 @@ export const useDeleteWarehouse = () => {
 export const useStockTransfer = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (transferData: any) => {
-      const response = await api.post('/inventory/transfer', transferData);
+    mutationFn: async (transferData: Record<string, unknown>) => {
+      const response = await api.post('/transfers/request', {
+        item_type: 'inventory',
+        ...transferData,
+      });
       return response.data;
     },
     onSuccess: () => {

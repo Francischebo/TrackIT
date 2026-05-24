@@ -20,7 +20,7 @@ class ValidationError(APIError):
     """Validation error"""
 
     def __init__(self, message, errors=None):
-        super().__init__(message, 400, {"validation_errors": errors})
+        super().__init__(message, 400, {"errors": errors or []})
 
 
 class AuthenticationError(APIError):
@@ -51,12 +51,24 @@ class ConflictError(APIError):
         super().__init__(message, 409)
 
 
+def _error_response(message, status_code, error_name, extra=None):
+    body = {
+        "success": False,
+        "message": message,
+        "errors": [],
+        "error": error_name,
+        "status_code": status_code,
+    }
+    if extra:
+        body.update(extra)
+    return jsonify(body), status_code
+
+
 def register_error_handlers(app):
     """Register error handlers for the Flask app"""
 
     @app.errorhandler(APIError)
     def handle_api_error(error):
-        # Log the error
         AuditService.log_user_action(
             action="API_ERROR",
             details={
@@ -69,17 +81,19 @@ def register_error_handlers(app):
             },
         )
 
-        response = {
+        body = {
             "success": False,
-            "error": error.__class__.__name__,
             "message": error.message,
+            "errors": [],
+            "error": error.__class__.__name__,
             "status_code": error.status_code,
         }
         if error.payload:
-            response.update(error.payload)
+            if "validation_errors" in error.payload and "errors" not in error.payload:
+                body["errors"] = error.payload["validation_errors"]
+            body.update(error.payload)
 
-        # Force 200 as requested
-        return jsonify(response), 200
+        return jsonify(body), error.status_code
 
     @app.errorhandler(400)
     def handle_bad_request(error):
@@ -91,17 +105,11 @@ def register_error_handlers(app):
                 "method": request.method,
             },
         )
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "BadRequest",
-                    "message": "Invalid request data",
-                    "details": error.description,
-                    "status_code": 400
-                }
-            ),
-            200,
+        return _error_response(
+            "Invalid request data",
+            400,
+            "BadRequest",
+            {"details": error.description},
         )
 
     @app.errorhandler(401)
@@ -114,17 +122,7 @@ def register_error_handlers(app):
                 "url": request.url,
             },
         )
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Unauthorized", 
-                    "message": "Authentication required",
-                    "status_code": 401
-                }
-            ),
-            200,
-        )
+        return _error_response("Authentication required", 401, "Unauthorized")
 
     @app.errorhandler(403)
     def handle_forbidden(error):
@@ -136,17 +134,7 @@ def register_error_handlers(app):
                 "url": request.url,
             },
         )
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Forbidden", 
-                    "message": "Insufficient permissions",
-                    "status_code": 403
-                }
-            ),
-            200,
-        )
+        return _error_response("Insufficient permissions", 403, "Forbidden")
 
     @app.errorhandler(404)
     def handle_not_found(error):
@@ -158,15 +146,7 @@ def register_error_handlers(app):
                 "url": request.url,
             },
         )
-        return (
-            jsonify({
-                "success": False,
-                "error": "NotFound", 
-                "message": "Resource not found",
-                "status_code": 404
-            }),
-            200,
-        )
+        return _error_response("Resource not found", 404, "NotFound")
 
     @app.errorhandler(429)
     def handle_rate_limit(error):
@@ -178,17 +158,7 @@ def register_error_handlers(app):
                 "url": request.url,
             },
         )
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "RateLimitExceeded", 
-                    "message": "Too many requests",
-                    "status_code": 429
-                }
-            ),
-            200,
-        )
+        return _error_response("Too many requests", 429, "RateLimitExceeded")
 
     from sqlalchemy.exc import IntegrityError, DataError, OperationalError
 
@@ -201,57 +171,37 @@ def register_error_handlers(app):
         if "unique" in str(error).lower():
             message = "This record already exists in the system."
         elif "foreign key" in str(error).lower():
-            message = "This operation cannot be completed because the record is referenced by other data."
+            message = (
+                "This operation cannot be completed because the record is "
+                "referenced by other data."
+            )
 
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Conflict", 
-                    "message": message, 
-                    "status_code": 409
-                }
-            ),
-            200,
-        )
+        return _error_response(message, 409, "Conflict")
 
     @app.errorhandler(DataError)
     def handle_data_error(error):
         db.session.rollback()
         current_app.logger.warning(f"Database data error: {str(error)}")
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "ValidationError",
-                    "message": "The provided data format is invalid for the database.",
-                    "status_code": 400,
-                }
-            ),
-            200,
+        return _error_response(
+            "The provided data format is invalid for the database.",
+            400,
+            "ValidationError",
         )
 
     @app.errorhandler(OperationalError)
     def handle_operational_error(error):
         db.session.rollback()
         current_app.logger.error(f"Database operational error: {str(error)}")
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "ServiceUnavailable",
-                    "message": "The database is currently unavailable or busy. Please try again later.",
-                    "status_code": 503,
-                }
-            ),
-            200,
+        return _error_response(
+            "The database is currently unavailable or busy. Please try again later.",
+            503,
+            "ServiceUnavailable",
         )
 
     from werkzeug.exceptions import HTTPException
 
     @app.errorhandler(HTTPException)
     def handle_http_exception(error):
-        """Catch all standard Flask/Werkzeug HTTP exceptions."""
         AuditService.log_user_action(
             action="HTTP_EXCEPTION",
             details={
@@ -262,21 +212,14 @@ def register_error_handlers(app):
                 "method": request.method,
             },
         )
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": error.name,
-                    "message": error.description,
-                    "status_code": error.code
-                }
-            ),
-            200,
+        return _error_response(
+            error.description or error.name,
+            error.code,
+            error.name,
         )
 
     @app.errorhandler(Exception)
     def handle_unexpected_error(error):
-        # Catch any unhandled exceptions
         current_app.logger.error(f"Unexpected error: {traceback.format_exc()}")
 
         AuditService.log_user_action(
@@ -291,15 +234,10 @@ def register_error_handlers(app):
 
         db.session.rollback()
 
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "InternalServerError",
-                    "message": "An unexpected system error occurred.",
-                    "status_code": 500,
-                    "details": str(error) if current_app.debug else None
-                }
-            ),
-            200,
+        extra = {"details": str(error)} if current_app.debug else None
+        return _error_response(
+            "An unexpected system error occurred.",
+            500,
+            "InternalServerError",
+            extra,
         )

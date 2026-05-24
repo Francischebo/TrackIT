@@ -1,35 +1,34 @@
 import axios from 'axios';
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    skipAuthRedirect?: boolean;
+    _retry?: boolean;
+  }
+}
+
 // Choose a sensible default: prefer VITE_API_URL, otherwise
 // when running on Vercel use the known Render backend, else use local '/api'.
 const resolvedBase = (() => {
   const envBase = import.meta.env.VITE_API_URL;
   if (envBase) {
-    console.log('[API] Using VITE_API_URL:', envBase);
     return envBase;
   }
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    console.log('[API] Running on Vercel, using Render backend: https://trackit-uxil.onrender.com');
     return 'https://trackit-uxil.onrender.com';
   }
-  console.log('[API] Using local /api endpoint');
   return '/api';
 })();
 
-console.log('[API] Resolved base URL:', resolvedBase);
-// Ensure production base includes the '/api' prefix so client paths like
-// '/auth/register-org' map to '/api/auth/register-org' on the backend.
 export const baseWithApi = (() => {
   try {
     if (resolvedBase === '/api') return resolvedBase;
     if (resolvedBase.endsWith('/api')) return resolvedBase.replace(/\/+$/, '');
     return resolvedBase.replace(/\/+$/, '') + '/api';
-  } catch (e) {
+  } catch {
     return resolvedBase;
   }
 })();
-
-console.log('[API] Using baseWithApi:', baseWithApi);
 
 const api = axios.create({
   baseURL: baseWithApi,
@@ -41,44 +40,67 @@ const api = axios.create({
   },
 });
 
-// Interceptor to add JWT token (not needed for cookies, but keeping for custom headers if any)
-api.interceptors.request.use((config) => {
-  return config;
-});
+let refreshPromise: Promise<void> | null = null;
 
-// Interceptor to handle unified 200 OK responses with error bodies
+async function refreshSession(): Promise<void> {
+  if (!refreshPromise) {
+    refreshPromise = api
+      .post('/auth/refresh', {}, { skipAuthRedirect: true })
+      .then(() => undefined)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+function shouldRedirectOn401(config?: { skipAuthRedirect?: boolean; url?: string }) {
+  if (config?.skipAuthRedirect) {
+    return false;
+  }
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return !window.location.pathname.includes('/login')
+    && !window.location.pathname.includes('/register');
+}
+
 api.interceptors.response.use(
-  (response) => {
-    const { data } = response;
-    console.log('[API] Response:', response.status, response.config.url, data);
-    
-    // Check if the response indicates an error despite the 200 status code
-    if (data && data.success === false) {
-      console.warn('[API] Error in response body:', data.message);
-      if (data.status_code === 401) {
-        if (!window.location.pathname.includes('/login')) {
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const status = error.response?.status;
+    const bodyStatus = error.response?.data?.status_code;
+
+    if (
+      originalRequest
+      && !originalRequest._retry
+      && (status === 401 || bodyStatus === 401)
+      && !originalRequest.url?.includes('/auth/login')
+      && !originalRequest.url?.includes('/auth/register-org')
+      && !originalRequest.url?.includes('/auth/refresh')
+      && !originalRequest.url?.includes('/auth/me')
+    ) {
+      originalRequest._retry = true;
+      try {
+        await refreshSession();
+        return api(originalRequest);
+      } catch {
+        if (shouldRedirectOn401(originalRequest)) {
           window.location.href = '/login';
         }
       }
-      // Construct an error object that axios would expect
-      const error = new Error(data.message || 'API Error');
-      (error as any).response = response;
-      return Promise.reject(error);
+    } else if ((status === 401 || bodyStatus === 401) && shouldRedirectOn401(originalRequest)) {
+      window.location.href = '/login';
     }
-    
-    return response;
-  },
-  (error) => {
-    // This will catch non-JSON errors or unexpected status codes (if any)
-    console.error('[API] Request error:', error.response?.status, error.config?.url, error.message);
-    if (error.response?.data) {
-      console.error('[API] Response data:', error.response.data);
+
+    if (status === 403 || bodyStatus === 403) {
+      const message =
+        error.response?.data?.message ||
+        'You do not have permission to perform this action.';
+      error.forbiddenMessage = message;
     }
-    if (error.response?.status === 401) {
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-    }
+
     return Promise.reject(error);
   }
 );

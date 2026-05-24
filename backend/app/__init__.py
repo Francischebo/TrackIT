@@ -83,13 +83,11 @@ def create_app(config_name=None):
     with app.app_context():
         from app.models import token
 
+        from app.tenant_utils import is_token_revoked
+
         @jwt.token_in_blocklist_loader
         def check_if_token_revoked(jwt_header, jwt_payload: dict) -> bool:
-            jti = jwt_payload["jti"]
-            return (
-                token.TokenBlacklist.query.filter_by(jti=jti).first()
-                is not None
-            )
+            return is_token_revoked(jwt_payload["jti"])
 
         # Register blueprints (use relative imports to avoid import-resolution issues)
         import importlib
@@ -142,6 +140,14 @@ def create_app(config_name=None):
         app.register_blueprint(reports_bp, url_prefix="/api/reports")
         app.register_blueprint(settings_bp, url_prefix="/api/settings")
         app.register_blueprint(search_bp, url_prefix="/api/search")
+
+        @app.route("/static/uploads/logos/<path:filename>")
+        def serve_org_logo(filename):
+            """Serve organization logo uploads."""
+            from flask import send_from_directory
+
+            directory = _os.path.join(app.root_path, "static", "uploads", "logos")
+            return send_from_directory(directory, filename)
 
         # Health check
         @app.route("/health")
@@ -260,7 +266,12 @@ def create_app(config_name=None):
         def handle_tenant_isolation():
             """Switch database schema based on the authenticated user's organization."""
             # Skip for non-API, public routes, and OPTIONS preflight
-            if request.path.startswith('/static') or request.method == "OPTIONS" or request.path in ['/health', '/', '/api/auth/login', '/api/auth/register-org']:
+            if (
+                request.path.startswith("/static")
+                or request.method == "OPTIONS"
+                or request.path in ["/health", "/"]
+                or request.path.startswith("/api/auth/")
+            ):
                 return
 
             try:

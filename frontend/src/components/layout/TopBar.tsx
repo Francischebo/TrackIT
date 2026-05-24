@@ -59,16 +59,25 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleResultClick = (type: string, id: number) => {
+  const handleResultClick = (type: string, id: number, label?: string) => {
     setIsSearchFocused(false);
     setSearchQuery('');
-    
-    // Navigate based on entity type
-    switch(type) {
-      case 'Asset': navigate(`/assets`); break;
-      case 'Inventory': navigate(`/inventory`); break;
-      case 'User': navigate(`/settings`); break;
-      case 'Department': navigate(`/departments`); break;
+    const q = label ? `?q=${encodeURIComponent(label)}` : '';
+    switch (type) {
+      case 'Asset':
+        navigate(`/assets${q}`);
+        break;
+      case 'Inventory':
+        navigate(`/inventory${q}`);
+        break;
+      case 'User':
+        navigate('/users');
+        break;
+      case 'Department':
+        navigate(`/departments${q}`);
+        break;
+      default:
+        break;
     }
   };
 
@@ -132,7 +141,7 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
                         <Package className="w-3 h-3" /> Assets
                       </h4>
                       {searchResults.assets.map(asset => (
-                        <button key={`asset-${asset.id}`} onClick={() => handleResultClick('Asset', asset.id)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
+                        <button key={`asset-${asset.id}`} onClick={() => handleResultClick('Asset', asset.id, asset.name || asset.code)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
                           <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors"><Package className="w-4 h-4" /></div>
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-bold text-slate-700 truncate">{asset.name}</div>
@@ -149,7 +158,7 @@ export const TopBar: React.FC<{ onMenuClick: () => void; onScanClick: () => void
                         <Box className="w-3 h-3" /> Inventory
                       </h4>
                       {searchResults.inventory.map(inv => (
-                        <button key={`inv-${inv.id}`} onClick={() => handleResultClick('Inventory', inv.id)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
+                        <button key={`inv-${inv.id}`} onClick={() => handleResultClick('Inventory', inv.id, inv.name || inv.code)} className="w-full text-left px-3 py-2.5 hover:bg-slate-50 rounded-xl flex items-center gap-3 group transition-colors">
                           <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-100 transition-colors"><Box className="w-4 h-4" /></div>
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-bold text-slate-700 truncate">{inv.name}</div>
