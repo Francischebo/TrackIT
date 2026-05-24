@@ -82,6 +82,10 @@ class User(UserMixin, db.Model):
         Check if user has specific permission.
         Format: 'resource:action' (e.g., 'assets:edit')
         """
+        # Superadmin has full access
+        if self.role == "superadmin":
+            return True
+
         role_permissions = {
             "admin": ["*:*"],  # Super access
             "store_manager": [

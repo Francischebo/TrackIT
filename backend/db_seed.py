@@ -100,6 +100,19 @@ def seed_database():
         
         db.session.add_all([admin, staff, dept_head, store_mgr])
         db.session.commit()
+
+        # Create global superadmin (can manage roles and system-wide settings)
+        superadmin = User(
+            organisation_id=org1.id,
+            username='Frank',
+            email='frankadmin@trackit.com',
+            first_name='Frank',
+            last_name='Administrator',
+            role='superadmin'
+        )
+        superadmin.set_password('P@55w0rd123!_')
+        db.session.add(superadmin)
+        db.session.commit()
         
         print("Creating assets...")
         today = datetime.utcnow().date()
@@ -210,7 +223,7 @@ def seed_database():
         print("\n[OK] Database seeded successfully!")
         print(f"  Organizations: 2")
         print(f"  Departments: 3")
-        print(f"  Users: 4")
+        print(f"  Users: 5")
         print(f"  Assets: 2")
         print(f"  Inventory Items: 2")
         print(f"  Stock Movements: 3")
@@ -219,6 +232,7 @@ def seed_database():
         print("  Staff: staff1@techcorp.com / Staff123!")
         print("  Dept Head: depthead@techcorp.com / Head123!")
         print("  Store Mgr: storemgr@techcorp.com / Store123!")
+        print("  Superadmin: frankadmin@trackit.com / P@55w0rd123!_")
 
 if __name__ == '__main__':
     seed_database()

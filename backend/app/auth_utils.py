@@ -43,7 +43,8 @@ def require_role(*roles):
         def decorated_function(*args, **kwargs):
             from flask import g
 
-            if g.user.role != "admin" and g.user.role not in roles:
+            # Allow admin and superadmin to bypass role checks
+            if g.user.role not in ("admin", "superadmin") and g.user.role not in roles:
                 raise AuthorizationError(
                     f"Role '{g.user.role}' not authorized. "
                     f"Required: {', '.join(roles)}"
@@ -65,7 +66,8 @@ def require_permission(permission):
         def decorated_function(*args, **kwargs):
             from flask import g
 
-            if g.user.role != "admin" and not g.user.has_permission(permission):
+            # Allow admin and superadmin to bypass permission checks
+            if g.user.role not in ("admin", "superadmin") and not g.user.has_permission(permission):
                 raise AuthorizationError(f"Permission '{permission}' required")
 
             return f(*args, **kwargs)

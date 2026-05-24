@@ -99,6 +99,12 @@ def update_organization_settings():
         }
     }), 200
 
+
+@settings_bp.route("/organization", methods=["OPTIONS"])
+def organization_options():
+    """CORS preflight for organization settings endpoint."""
+    return ('', 204)
+
 @settings_bp.route("/organization/logo", methods=["POST"])
 @jwt_required_with_user
 @require_role("admin")
@@ -156,6 +162,12 @@ def upload_organization_logo():
         
     return jsonify({"success": False, "message": "File type not allowed"}), 400
 
+
+@settings_bp.route("/organization/logo", methods=["OPTIONS"])
+def upload_organization_logo_options():
+    """CORS preflight for logo upload endpoint."""
+    return ('', 204)
+
 @settings_bp.route("/organization/export", methods=["POST"])
 @jwt_required_with_user
 @require_role("admin")
@@ -195,6 +207,12 @@ def export_system_data():
         'Content-Disposition': f'attachment; filename=export_org_{org_id}_{datetime.now().strftime("%Y%m%d")}.csv'
     }
 
+
+@settings_bp.route("/organization/export", methods=["OPTIONS"])
+def export_system_data_options():
+    """CORS preflight for data export endpoint."""
+    return ('', 204)
+
 @settings_bp.route("/organization/purge", methods=["DELETE"])
 @jwt_required_with_user
 @require_role("admin")
@@ -232,3 +250,9 @@ def purge_historical_data():
         "message": f"Successfully purged {deleted_count} historical records.",
         "records_deleted": deleted_count
     }), 200
+
+
+@settings_bp.route("/organization/purge", methods=["OPTIONS"])
+def purge_historical_data_options():
+    """CORS preflight for organization purge endpoint."""
+    return ('', 204)

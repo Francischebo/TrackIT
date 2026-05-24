@@ -203,6 +203,12 @@ def create_department():
     )
 
 
+@departments_bp.route("", methods=["OPTIONS"])
+def create_department_options():
+    """CORS preflight for creating departments."""
+    return ('', 204)
+
+
 @departments_bp.route("/<int:dept_id>", methods=["PUT"])
 @jwt_required_with_user
 @require_role("admin")
@@ -273,6 +279,12 @@ def update_department(dept_id):
     event_bus.publish("DEPARTMENT_UPDATED", {"department_id": dept.id}, organisation_id=org_id)
 
     return jsonify({"message": "Department updated successfully"}), 200
+
+
+@departments_bp.route("/<int:dept_id>", methods=["OPTIONS"])
+def update_department_options(dept_id):
+    """CORS preflight for updating/deleting a department."""
+    return ('', 204)
 
 
 @departments_bp.route("/<int:dept_id>", methods=["DELETE"])

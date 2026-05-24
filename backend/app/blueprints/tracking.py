@@ -75,6 +75,12 @@ def record_scan():
     )
 
 
+@tracking_bp.route("/scan", methods=["OPTIONS"])
+def record_scan_options():
+    """CORS preflight for scan endpoint."""
+    return ('', 204)
+
+
 @tracking_bp.route("/bin-environment/<int:bin_id>", methods=["GET"])
 @jwt_required_with_user
 def get_bin_environment(bin_id):

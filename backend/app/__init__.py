@@ -273,6 +273,19 @@ def create_app(config_name=None):
                 # Log but don't block; actual auth decorators will handle errors
                 app.logger.debug(f"Tenant isolation context skipped: {str(e)}")
 
+        @app.before_request
+        def log_incoming_request():
+            """Log key request info to help diagnose Method Not Allowed or proxy issues."""
+            try:
+                origin = request.headers.get('Origin')
+                host = request.headers.get('Host')
+                ua = request.headers.get('User-Agent')
+                app.logger.info(
+                    f"INCOMING REQUEST - {request.remote_addr} {request.method} {request.path} Origin={origin} Host={host} UA={ua}"
+                )
+            except Exception:
+                app.logger.debug("Failed to log incoming request details")
+
         @app.after_request
         def normalize_api_responses(response):
             """Ensure JSON responses have a consistent wrapper but DO NOT alter HTTP status codes.

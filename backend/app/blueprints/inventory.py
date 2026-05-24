@@ -162,6 +162,12 @@ def create_inventory_item():
     )
 
 
+@inventory_bp.route("", methods=["OPTIONS"])
+def create_inventory_item_options():
+    """CORS preflight for creating inventory items."""
+    return ('', 204)
+
+
 @inventory_bp.route("/<int:item_id>", methods=["PUT"])
 @jwt_required_with_user
 @require_role("admin", "staff", "store_manager")
@@ -186,6 +192,12 @@ def update_inventory_item(item_id):
 
     inventory_service.update_item(item_id, org_id, validated_data)
     return jsonify({"message": "Inventory item updated successfully"}), 200
+
+
+@inventory_bp.route("/<int:item_id>", methods=["OPTIONS"])
+def update_inventory_item_options(item_id):
+    """CORS preflight for updating/deleting inventory item."""
+    return ('', 204)
 
 
 @inventory_bp.route("/<int:item_id>/stock", methods=["POST"])
@@ -234,6 +246,12 @@ def update_stock(item_id):
         ),
         200,
     )
+
+
+@inventory_bp.route("/<int:item_id>/stock", methods=["OPTIONS"])
+def update_stock_options(item_id):
+    """CORS preflight for updating stock movements."""
+    return ('', 204)
 
 
 @inventory_bp.route("/<int:item_id>", methods=["DELETE"])

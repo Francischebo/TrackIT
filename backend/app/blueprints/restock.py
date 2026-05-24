@@ -124,3 +124,9 @@ def update_thresholds():
 
     db.session.commit()
     return jsonify({"message": "Thresholds updated successfully"}), 200
+
+
+@restock_bp.route("/thresholds", methods=["OPTIONS"])
+def update_thresholds_options():
+    """CORS preflight for thresholds update endpoint."""
+    return ('', 204)

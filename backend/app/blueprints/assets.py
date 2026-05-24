@@ -185,6 +185,12 @@ def create_asset():
     )
 
 
+@assets_bp.route("", methods=["OPTIONS"])
+def create_asset_options():
+    """CORS preflight for creating assets."""
+    return ('', 204)
+
+
 @assets_bp.route("/<int:asset_id>", methods=["PUT"])
 @jwt_required_with_user
 @require_role("admin", "staff")
@@ -213,6 +219,12 @@ def update_asset(asset_id):
 
     asset_service.update_asset(asset_id, org_id, validated_data)
     return jsonify({"message": "Asset updated successfully"}), 200
+
+
+@assets_bp.route("/<int:asset_id>", methods=["OPTIONS"])
+def update_asset_options(asset_id):
+    """CORS preflight for updating/deleting an asset."""
+    return ('', 204)
 
 
 @assets_bp.route("/<int:asset_id>/status", methods=["PUT"])
@@ -257,6 +269,12 @@ def update_asset_status(asset_id):
         ),
         200,
     )
+
+
+@assets_bp.route("/<int:asset_id>/status", methods=["OPTIONS"])
+def update_asset_status_options(asset_id):
+    """CORS preflight for updating asset status."""
+    return ('', 204)
 
 
 @assets_bp.route("/<int:asset_id>", methods=["DELETE"])
