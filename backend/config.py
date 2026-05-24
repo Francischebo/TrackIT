@@ -80,6 +80,9 @@ class Config:
     # Security
     BCRYPT_LOG_ROUNDS = 12
 
+    # Optional secret for /cron/keepalive (?token=... or X-Cron-Secret header)
+    CRON_SECRET = os.environ.get("CRON_SECRET")
+
     # QR tracking
     TRACKING_PUBLIC_URL = os.environ.get(
         "TRACKING_PUBLIC_URL", "http://localhost:5173/tracking"

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -187,6 +188,65 @@ def create_app(config_name=None):
                 200 if health["status"] != "unhealthy" else 503
             )
 
+        _PUBLIC_PATHS = {"/", "/health", "/ping", "/cron/keepalive"}
+
+        @app.route("/ping", methods=["GET", "HEAD"])
+        def ping():
+            """Minimal liveness probe (no database)."""
+            return (
+                jsonify(
+                    {
+                        "ok": True,
+                        "service": "trackit",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+                200,
+            )
+
+        @app.route("/cron/keepalive", methods=["GET", "HEAD"])
+        def cron_keepalive():
+            """Wake Render/free-tier hosts; call every ~10 minutes from cron-job.org."""
+            secret = app.config.get("CRON_SECRET")
+            if secret:
+                provided = (
+                    request.args.get("token")
+                    or request.headers.get("X-Cron-Secret")
+                )
+                if provided != secret:
+                    return (
+                        jsonify(
+                            {
+                                "ok": False,
+                                "message": "Invalid or missing cron token",
+                                "status_code": 401,
+                            }
+                        ),
+                        401,
+                    )
+
+            db_status = "skipped"
+            if request.args.get("db", "").lower() in ("1", "true", "yes"):
+                try:
+                    db.session.execute(sa_text("SELECT 1"))
+                    db_status = "up"
+                except Exception as exc:
+                    app.logger.warning("Cron keepalive DB check failed: %s", exc)
+                    db_status = "down"
+
+            return (
+                jsonify(
+                    {
+                        "ok": True,
+                        "service": "trackit",
+                        "purpose": "keepalive",
+                        "database": db_status,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+                200,
+            )
+
         @app.route("/", methods=["GET"])
         def index():
             """Root endpoint providing basic API information."""
@@ -196,6 +256,8 @@ def create_app(config_name=None):
                         "service": "Assets Inventory API",
                         "status": "running",
                         "health": "/health",
+                        "ping": "/ping",
+                        "cron_keepalive": "/cron/keepalive",
                         "endpoints": [
                             "/api/users",
                             "/api/auth",
@@ -253,7 +315,7 @@ def create_app(config_name=None):
             if (
                 request.path.startswith("/static")
                 or request.method == "OPTIONS"
-                or request.path in ["/health", "/"]
+                or request.path in _PUBLIC_PATHS
                 or request.path.startswith("/api/auth/")
             ):
                 return
@@ -271,6 +333,8 @@ def create_app(config_name=None):
         @app.before_request
         def log_incoming_request():
             """Log key request info to help diagnose Method Not Allowed or proxy issues."""
+            if request.path in ("/ping", "/cron/keepalive"):
+                return
             try:
                 origin = request.headers.get('Origin')
                 host = request.headers.get('Host')
