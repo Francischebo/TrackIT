@@ -25,9 +25,9 @@ const LoginPage = () => {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { user } = response.data;
-      
-      login('', user); // Token handled by cookies
+      const { user, access_token } = response.data;
+
+      login(access_token ?? '', user);
       addToast('success', 'Welcome back to TrackIT');
       navigate(from, { replace: true });
     } catch (err: any) {

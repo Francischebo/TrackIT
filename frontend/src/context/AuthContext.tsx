@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
+import api, { clearAuthTokens } from '../services/api';
+import { hasStoredSession } from '../lib/authStorage';
 
 interface User {
   id: number;
@@ -39,23 +40,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const resp = await api.get('/auth/me', sessionConfig);
-      const mapped = mapUserPayload(resp.data);
-      if (mapped) {
-        setUser(mapped);
-        return;
+      const payload = resp.data as Record<string, unknown>;
+
+      if (payload?.authenticated === false) {
+        if (!hasStoredSession()) {
+          setUser(null);
+          return;
+        }
+      } else {
+        const mapped = mapUserPayload(payload.user ? (payload.user as Record<string, unknown>) : payload);
+        if (mapped) {
+          setUser(mapped);
+          return;
+        }
       }
     } catch {
-      // Access token may have expired; attempt silent refresh once.
+      if (!hasStoredSession()) {
+        setUser(null);
+        return;
+      }
+    }
+
+    if (hasStoredSession()) {
       try {
-        await api.post('/auth/refresh', {}, sessionConfig);
+        const refreshResp = await api.post('/auth/refresh', {}, sessionConfig);
+        if (refreshResp.data?.refreshed === false) {
+          clearAuthTokens();
+          setUser(null);
+          return;
+        }
+
         const retry = await api.get('/auth/me', sessionConfig);
-        const mapped = mapUserPayload(retry.data);
+        const retryPayload = retry.data as Record<string, unknown>;
+        if (retryPayload?.authenticated === false) {
+          clearAuthTokens();
+          setUser(null);
+          return;
+        }
+
+        const mapped = mapUserPayload(
+          retryPayload.user ? (retryPayload.user as Record<string, unknown>) : retryPayload,
+        );
         if (mapped) {
           setUser(mapped);
           return;
         }
       } catch {
-        // Expected for logged-out visitors.
+        clearAuthTokens();
       }
     }
 
@@ -89,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Clear local state even if the server session is already gone.
     } finally {
+      clearAuthTokens();
       setUser(null);
     }
   };

@@ -1,4 +1,11 @@
 import axios from 'axios';
+import {
+  clearAuthTokens,
+  getAccessToken,
+  getRefreshToken,
+  hasStoredSession,
+  setAuthTokens,
+} from '../lib/authStorage';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -42,11 +49,31 @@ const api = axios.create({
 
 let refreshPromise: Promise<void> | null = null;
 
+function persistTokensFromResponse(data: Record<string, unknown> | undefined) {
+  if (!data) {
+    return;
+  }
+  const access = typeof data.access_token === 'string' ? data.access_token : null;
+  const refresh = typeof data.refresh_token === 'string' ? data.refresh_token : undefined;
+  if (access || refresh !== undefined) {
+    setAuthTokens(access, refresh ?? getRefreshToken());
+  }
+}
+
 async function refreshSession(): Promise<void> {
+  if (!hasStoredSession()) {
+    return;
+  }
+
   if (!refreshPromise) {
     refreshPromise = api
       .post('/auth/refresh', {}, { skipAuthRedirect: true })
-      .then(() => undefined)
+      .then((response) => {
+        persistTokensFromResponse(response.data);
+        if (response.data?.refreshed === false) {
+          clearAuthTokens();
+        }
+      })
       .finally(() => {
         refreshPromise = null;
       });
@@ -65,8 +92,29 @@ function shouldRedirectOn401(config?: { skipAuthRedirect?: boolean; url?: string
     && !window.location.pathname.includes('/register');
 }
 
+api.interceptors.request.use((config) => {
+  const path = config.url || '';
+  if (path.includes('/auth/refresh')) {
+    const refresh = getRefreshToken();
+    if (refresh) {
+      config.headers.Authorization = `Bearer ${refresh}`;
+    }
+  } else if (!path.includes('/auth/login') && !path.includes('/auth/register-org')) {
+    const access = getAccessToken();
+    if (access) {
+      config.headers.Authorization = `Bearer ${access}`;
+    }
+  }
+  return config;
+});
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config.url?.includes('/auth/login')) {
+      persistTokensFromResponse(response.data);
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
@@ -80,12 +128,14 @@ api.interceptors.response.use(
       && !originalRequest.url?.includes('/auth/register-org')
       && !originalRequest.url?.includes('/auth/refresh')
       && !originalRequest.url?.includes('/auth/me')
+      && hasStoredSession()
     ) {
       originalRequest._retry = true;
       try {
         await refreshSession();
         return api(originalRequest);
       } catch {
+        clearAuthTokens();
         if (shouldRedirectOn401(originalRequest)) {
           window.location.href = '/login';
         }
@@ -105,4 +155,5 @@ api.interceptors.response.use(
   }
 );
 
+export { clearAuthTokens, refreshSession, setAuthTokens };
 export default api;

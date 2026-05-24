@@ -199,6 +199,8 @@ def login():
     response = jsonify(
         {
             "message": "Login successful",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "user": {
                 "id": user_obj.id,
                 "username": user_obj.username,
@@ -222,15 +224,18 @@ def refresh_options():
 
 
 @auth_bp.route("/refresh", methods=["POST"])
-@jwt_required(refresh=True)
 @limiter.limit("30 per minute", methods=["POST"])
 def refresh_access_token():
-    """Refresh access token using refresh token."""
+    """Refresh access token using refresh cookie or Authorization header."""
+    verify_jwt_in_request(refresh=True, optional=True)
     user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({"refreshed": False, "authenticated": False}), 200
+
     user_obj = get_user_by_id(user_id)
 
     if not user_obj or not user_obj.is_active:
-        raise AuthenticationError("Invalid refresh token")
+        return jsonify({"refreshed": False, "authenticated": False}), 200
 
     # Create new access token
     access_token = create_access_token(
@@ -245,7 +250,14 @@ def refresh_access_token():
     # Audit log
     AuditService.log_authentication_event("TOKEN_REFRESH", user_obj.id)
 
-    response = jsonify({"message": "Token refreshed"})
+    response = jsonify(
+        {
+            "message": "Token refreshed",
+            "refreshed": True,
+            "authenticated": True,
+            "access_token": access_token,
+        }
+    )
 
     set_access_cookies(response, access_token)
     return response, 200
@@ -299,20 +311,21 @@ def me_options():
 
 @auth_bp.route("/me", methods=["GET"])
 def get_current_user():
-    """Get current user information. Returns 401 when not authenticated."""
+    """Get current user information. Returns 200 with authenticated=false when logged out."""
     verify_jwt_in_request(optional=True)
     user_id = get_jwt_identity()
     if not user_id:
-        return jsonify({"message": "Not authenticated"}), 401
+        return jsonify({"authenticated": False, "user": None}), 200
 
     user_obj = get_user_by_id(user_id)
 
     if not user_obj:
-        raise AuthenticationError("User not found")
+        return jsonify({"authenticated": False, "user": None}), 200
 
     return (
         jsonify(
             {
+                "authenticated": True,
                 "id": user_obj.id,
                 "username": user_obj.username,
                 "email": user_obj.email,
