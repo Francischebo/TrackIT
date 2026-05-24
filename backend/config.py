@@ -1,5 +1,49 @@
 import os
+import re
 from datetime import timedelta
+from urllib.parse import quote_plus, urlparse, urlunparse
+
+
+def normalize_supabase_database_url(url: str | None) -> str | None:
+    """Use Supabase pooler for cloud hosts (Render cannot reach direct db.* IPv6).
+
+    Direct: postgresql://postgres:PASS@db.PROJECT.supabase.co:5432/postgres
+    Pooler: postgresql://postgres.PROJECT:PASS@aws-0-REGION.pooler.supabase.com:6543/postgres
+    """
+    if not url or "pooler.supabase.com" in url:
+        return url
+
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if not host.startswith("db.") or not host.endswith(".supabase.co"):
+        return url
+
+    project_ref = host[len("db.") : -len(".supabase.co")]
+    password = parsed.password
+    if not password:
+        return url
+
+    pooler_host = os.environ.get(
+        "SUPABASE_POOLER_HOST", "aws-0-eu-west-1.pooler.supabase.com"
+    )
+    pooler_port = os.environ.get("SUPABASE_POOLER_PORT", "6543")
+    path = parsed.path or "/postgres"
+    query = parsed.query
+    if "sslmode=" not in query:
+        query = f"{query}&sslmode=require" if query else "sslmode=require"
+
+    netloc = f"postgres.{project_ref}:{quote_plus(password)}@{pooler_host}:{pooler_port}"
+    return urlunparse(
+        (parsed.scheme, netloc, path, parsed.params, query, parsed.fragment)
+    )
+
+
+def _postgres_engine_options(db_url: str | None) -> dict:
+    options = {"pool_pre_ping": True}
+    if db_url and db_url.startswith("postgresql://"):
+        options["client_encoding"] = "utf8"
+        options["connect_args"] = {"connect_timeout": 10}
+    return options
 
 
 class Config:
@@ -43,17 +87,8 @@ class Config:
     QR_PAYLOAD_TTL_DAYS = int(os.environ.get("QR_PAYLOAD_TTL_DAYS", "365"))
     SCAN_DEDUP_SECONDS = int(os.environ.get("SCAN_DEDUP_SECONDS", "30"))
 
-    # SQLAlchemy engine options - helpful for PostgreSQL in production
-    # Note: client_encoding is PostgreSQL-specific, only set for PostgreSQL
     _db_url = os.environ.get("DATABASE_URL") or os.environ.get("DATABASE_URL_PROD")
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-    }
-    # Only add PostgreSQL-specific options when using PostgreSQL
-    if _db_url and _db_url.startswith("postgresql://"):
-        SQLALCHEMY_ENGINE_OPTIONS["client_encoding"] = "utf8"
-        # Avoid long blocking on initial connect; set a connect timeout
-        SQLALCHEMY_ENGINE_OPTIONS["connect_args"] = {"connect_timeout": 10}
+    SQLALCHEMY_ENGINE_OPTIONS = _postgres_engine_options(_db_url)
 
 
 
@@ -89,11 +124,12 @@ class ProductionConfig(Config):
     
 
     
-    # Secure database URI with SSL requirement if PostgreSQL
     _db_url = os.environ.get("DATABASE_URL_PROD") or os.environ.get("DATABASE_URL")
+    _db_url = normalize_supabase_database_url(_db_url)
     if _db_url and _db_url.startswith("postgresql://") and "sslmode=" not in _db_url:
         _db_url += "?sslmode=require"
     SQLALCHEMY_DATABASE_URI = _db_url
+    SQLALCHEMY_ENGINE_OPTIONS = _postgres_engine_options(_db_url)
 
     # Production security
     SESSION_COOKIE_SECURE = True
